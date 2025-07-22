@@ -169,7 +169,35 @@ h2 = ["h2 (>=4,<5)"]
 socks = ["pysocks (>=1.5.6,!=1.5.7,<2.0)"]
 zstd = ["zstandard (>=0.18.0)"]
 
+[[package]]
+name = "whatsapp-api-client-python"
+version = "0.0.49"
+description = "This library helps you easily create a Python application with WhatsApp API."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "whatsapp_api_client_python-0.0.49.tar.gz", hash = "sha256:444d474bfeb6c5c407193f72249b0c21ff67763e614b0fdb821dbf5466efd397"},
+]
+
+[package.dependencies]
+requests = ">=2.31.0"
+
+[[package]]
+name = "whatsapp-chatbot-python"
+version = "0.9.6"
+description = "This library helps you easily create a Python chatbot with WhatsApp API."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "whatsapp_chatbot_python-0.9.6.tar.gz", hash = "sha256:0a2a731d20735d3e293f6fdf5744c17c26bf35d2116daa4b2a72f9df46ac8863"},
+]
+
+[package.dependencies]
+whatsapp-api-client-python = ">=0.0.49"
+
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.12"
-content-hash = "b1b592ff8cb988819f8fe660c71824ea5338520835803926b79a2b82b9a00746"
+python-versions = ">=3.11,<3.12"
+content-hash = "f9bdff500ff5b2bc6fa1458ac14a2964f288ee3eda49f836174a41f9f7f0ecc7"
