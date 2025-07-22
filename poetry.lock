@@ -200,4 +200,4 @@ whatsapp-api-client-python = ">=0.0.49"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "f9bdff500ff5b2bc6fa1458ac14a2964f288ee3eda49f836174a41f9f7f0ecc7"
+content-hash = "134bfbce0fc52b3e17c28346478d547022cddf612cb8d1f8a2014bac1126a03e"

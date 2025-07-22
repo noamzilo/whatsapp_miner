@@ -7,6 +7,7 @@ from src.doppler_bootstrap import inject_doppler_secrets
 inject_doppler_secrets()
 from src.env_var_injection import api_token, instance_id
 import requests
+from whatsapp_api_client_python import API
 
 
 api_url = f'https://7105.api.greenapi.com/waInstance{instance_id}/receiveNotification/{api_token}'
