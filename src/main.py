@@ -8,6 +8,7 @@ inject_doppler_secrets()
 from src.env_var_injection import api_token, instance_id
 import requests
 
+
 api_url = f'https://7105.api.greenapi.com/waInstance{instance_id}/receiveNotification/{api_token}'
 
 def receive_message():
@@ -20,6 +21,7 @@ def receive_message():
 			print("No new messages.")
 	else:
 		print("Failed to poll GreenAPI:", response.status_code, response.text)
+		print(f"{api_url}")
 
 def print_hi(name):
 	# Use a breakpoint in the code line below to debug your script.
