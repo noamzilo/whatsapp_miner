@@ -1,6 +1,8 @@
 import os
 
 def sanitize_env_var(env_var):
+	if env_var is None:
+		raise RuntimeError("Missing required environment variable.")
 	env_var = env_var.replace('"', "")
 	return env_var
 

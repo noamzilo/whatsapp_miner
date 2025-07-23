@@ -2,5 +2,6 @@
 
 set -e
 
-# Run container with Doppler injecting environment variables
-doppler run -- docker run --rm whatsapp-miner
+doppler secrets download --no-file --format docker > .env.doppler
+docker run --rm --env-file .env.doppler whatsapp-miner -d
+rm .env.doppler
