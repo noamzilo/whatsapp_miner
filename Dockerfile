@@ -13,7 +13,7 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
 # Copy poetry files first for caching
-COPY pyproject.toml poetry.lock poetry.toml ./
+COPY pyproject.toml poetry.toml ./
 
 # Install deps (no virtualenv, use system)
 RUN poetry config virtualenvs.create false && \

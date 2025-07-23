@@ -10,7 +10,7 @@ install_aws_cli() {
 	if ! command -v aws >/dev/null; then
 		echo "[INFO] Installing AWS CLI v2..."
 		sudo apt-get update
-		sudo apt-get install -y unzip  # <–– ADD THIS LINE
+		sudo apt-get install -y unzip
 		curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 		unzip -q awscliv2.zip
 		sudo ./aws/install
@@ -70,6 +70,9 @@ eval "$(doppler secrets download --no-file --format env)"
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?Missing DOCKER_IMAGE_NAME_WHATSAPP_MINER}"
 : "${AWS_EC2_REGION:?Missing AWS_EC2_REGION}"
 : "${AWS_EC2_USERNAME:?Missing AWS_EC2_USERNAME}"
+: "${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:?Missing AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID}"
+: "${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:?Missing AWS_IAM_WHATSAPP_MINER_ACCESS_KEY}"
+
 # Map Doppler secrets to AWS standard variable names
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
@@ -79,7 +82,8 @@ export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 # ────────────────────────────────────────────────────────────────
 
 echo "[INFO] Logging in to ECR and pushing image..."
-aws ecr get-login-password --region "$AWS_EC2_REGION" | docker login --username AWS --password-stdin "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
+aws ecr get-login-password --region "$AWS_EC2_REGION" \
+	| docker login --username AWS --password-stdin "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
 
 ./docker_build.sh
 docker push "$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
@@ -96,7 +100,9 @@ echo "[INFO] Connecting to EC2 and deploying..."
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS" << 'EOF'
 	set -euo pipefail
 
-	cd whatsapp_miner_backend
+	# Create and enter working directory
+	mkdir -p ~/whatsapp_miner
+	cd ~/whatsapp_miner
 
 	# Ensure Doppler and AWS CLI exist remotely
 	if ! command -v doppler >/dev/null; then
@@ -104,18 +110,28 @@ ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_
 		sudo mv doppler /usr/local/bin
 	fi
 
-	if ! command -v aws >/dev/null; then
+	if ! command -v aws >/dev/null || aws --version | grep -q 'aws-cli/1'; then
+		sudo apt-get update
+		sudo apt-get install -y unzip
 		curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 		unzip -q awscliv2.zip
 		sudo ./aws/install
 		rm -rf aws awscliv2.zip
 	fi
 
+	# Load env vars
 	eval "\$(doppler secrets download --no-file --format env)"
-	aws ecr get-login-password --region "$AWS_EC2_REGION" | docker login --username AWS --password-stdin "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
-	docker pull "$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
 
-	./docker_run.sh
+	# Docker login, pull, run
+	aws ecr get-login-password --region "\$AWS_EC2_REGION" \
+		| docker login --username AWS --password-stdin "\${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
+
+	docker pull "\$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+
+	doppler secrets download --no-file --format docker > .env.doppler
+	docker ps -q --filter "ancestor=\$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | xargs -r docker rm -f
+	docker run --rm --env-file .env.doppler "\$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+	rm .env.doppler
 EOF
 
 echo "[INFO] Cleaning up..."
