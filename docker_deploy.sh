@@ -2,36 +2,40 @@
 
 set -e
 
-# Config - edit these as needed
-AWS_REGION="us-east-1"
-ECR_REPO_NAME="whatsapp-miner"
-ECR_ACCOUNT_ID="YOUR_AWS_ACCOUNT_ID"
-EC2_USER="ubuntu"
-EC2_HOST="your-ec2-public-dns"
-DOCKER_IMAGE_NAME="whatsapp-miner"
-REMOTE_IMAGE="$ECR_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO_NAME:latest"
+# Inject all secrets into env
+eval "$(doppler secrets download --no-file --format env)"
 
-# 1. Build the Docker image
+# Constants from environment
+HOST="$AWS_EC2_HOST_ADDRESS"
+KEY_B64="$AWS_EC2_PEM_CHATBOT_SA_B64"
+IMAGE_NAME="$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+REGION="$AWS_EC2_REGION"
+USER="$AWS_EC2_USERNAME"
+
+# Docker login + push
+aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${IMAGE_NAME%/*}"
 ./docker_build.sh
+docker push "$IMAGE_NAME"
 
-# 2. Authenticate Docker to ECR
-aws ecr get-login-password --region $AWS_REGION \
-	| docker login --username AWS --password-stdin $ECR_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+# Temporary PEM key
+KEY_FILE=$(mktemp)
+echo "$KEY_B64" | base64 -d > "$KEY_FILE"
+chmod 400 "$KEY_FILE"
 
-# 3. Tag and push to ECR
-docker tag $DOCKER_IMAGE_NAME:latest $REMOTE_IMAGE
-docker push $REMOTE_IMAGE
+# SSH into EC2 and deploy
+ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$USER@$HOST" << 'EOF'
+	set -e
+	cd whatsapp_miner_backend
 
-echo "Image pushed to ECR: $REMOTE_IMAGE"
+	# Load Doppler secrets on remote side
+	eval "\$(doppler secrets download --no-file --format env)"
 
-# 4. SSH to EC2, pull image, and run with Doppler injected
-echo "Connecting to EC2: $EC2_USER@$EC2_HOST"
+	# Pull and run
+	aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
+	docker pull "$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
 
-ssh $EC2_USER@$EC2_HOST bash -c "'
-aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-docker pull $REMOTE_IMAGE
-doppler run -- bash -c \"docker run --rm \
-	-e GREEN_API_INSTANCE_ID=\\\"\$GREEN_API_INSTANCE_ID\\\" \
-	-e GREEN_API_INSTANCE_API_TOKEN=\\\"\$GREEN_API_INSTANCE_API_TOKEN\\\" \
-	$REMOTE_IMAGE\"
-'"
+	./docker_run.sh
+EOF
+
+# Clean up
+rm "$KEY_FILE"
