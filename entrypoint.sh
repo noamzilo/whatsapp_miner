@@ -2,7 +2,13 @@
 
 set -e
 
-# Optional: activate doppler here if needed (but you said it's injected at runtime already)
+APP_FILE="/app/src/receive_notification.py"
 
-# Run your app (adjust path if your main file is not in src/)
-python src/receive_notification.py
+echo "Entrypoint script executing"
+
+if [[ ! -f "$APP_FILE" ]]; then
+	echo "❌ ERROR: $APP_FILE not found! Exiting."
+	exit 1
+fi
+
+python "$APP_FILE"
