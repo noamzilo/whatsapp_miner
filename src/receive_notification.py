@@ -1,5 +1,5 @@
 print("receive_notification.py first line")
-
+import logging
 from datetime import datetime
 from json import dumps
 import paths
@@ -56,7 +56,6 @@ def outgoing_message_received(body: dict) -> None:
 	data = dumps(body, ensure_ascii=False, indent=4)
 
 	print(f"New outgoing message at {time} with data: {data}", end="\n\n")
-
 
 def outgoing_api_message_received(body: dict) -> None:
 	timestamp = body["timestamp"]
