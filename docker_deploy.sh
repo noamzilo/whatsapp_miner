@@ -70,6 +70,9 @@ eval "$(doppler secrets download --no-file --format env)"
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?Missing DOCKER_IMAGE_NAME_WHATSAPP_MINER}"
 : "${AWS_EC2_REGION:?Missing AWS_EC2_REGION}"
 : "${AWS_EC2_USERNAME:?Missing AWS_EC2_USERNAME}"
+# Map Doppler secrets to AWS standard variable names
+export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 
 # ────────────────────────────────────────────────────────────────
 # Build and push image
