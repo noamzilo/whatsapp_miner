@@ -2,5 +2,5 @@
 
 set -e
 
-# Build the Docker image
-docker build -t whatsapp-miner .
+IMAGE_NAME=$(doppler secrets get DOCKER_IMAGE_NAME_WHATSAPP_MINER --plain)
+docker build -t "$IMAGE_NAME" .

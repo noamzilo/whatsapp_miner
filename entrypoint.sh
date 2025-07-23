@@ -11,4 +11,8 @@ if [[ ! -f "$APP_FILE" ]]; then
 	exit 1
 fi
 
+echo "Current working dir: $(pwd)"
+echo "List /app/src:"
+ls -l /app/src
+
 python "$APP_FILE"

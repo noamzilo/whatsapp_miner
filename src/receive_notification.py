@@ -11,7 +11,7 @@ greenAPI = API.GreenAPI(
 )
 
 def main():
-	print(f"polling started")
+	print(f"polling started   ")
 	greenAPI.webhooks.startReceivingNotifications(handler)
 	print("this will never print if startReceivingNotifications is blocking")
 
