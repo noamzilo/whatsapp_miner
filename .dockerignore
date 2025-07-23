@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtual environment
+.venv/
+env/
+
+# dotenv secrets
+.env
+.env.*
+
+# Logs and temp files
+*.log
+logs/
+tmp/
+
+# Test and coverage files
+.coverage
+.tox/
+pytest_cache/
+
+# Git
+.git/
+.gitignore
+
+# Poetry files not needed in image
+poetry.lock
+
+# PyCharm / VSCode / editor settings
+.idea/
+.vscode/
+
+# System files
+.DS_Store
+Thumbs.db
+
+#
+*.pyc
