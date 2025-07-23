@@ -3,8 +3,6 @@
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import paths
-from src.doppler_bootstrap import inject_doppler_secrets
-inject_doppler_secrets()
 from src.env_var_injection import api_token, instance_id
 import requests
 from whatsapp_api_client_python import API

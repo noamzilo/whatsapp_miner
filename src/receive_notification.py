@@ -1,8 +1,6 @@
 from datetime import datetime
 from json import dumps
 import paths
-from doppler_bootstrap import  inject_doppler_secrets
-inject_doppler_secrets()
 from env_var_injection import instance_id, api_token
 from whatsapp_api_client_python import API
 

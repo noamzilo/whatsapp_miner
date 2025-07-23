@@ -115,6 +115,25 @@ files = [
 ]
 
 [[package]]
+name = "doppler-env"
+version = "0.3.1"
+description = "Inject Doppler secrets as environment variables into your Python application during local development with debugging support for PyCharm and Visual Studio Code."
+optional = false
+python-versions = ">=3.6"
+groups = ["dev"]
+files = [
+    {file = "doppler_env-0.3.1-py3-none-any.whl", hash = "sha256:4c80437f875c7bb85c980e7a3bf96fff594d1e1b05b99b49b02e673fbaa2d65c"},
+    {file = "doppler_env-0.3.1.tar.gz", hash = "sha256:d187c2cf6a0dec677c00af502d59b382d507d69cd9805ea9e8211860bd0aa0f7"},
+]
+
+[package.dependencies]
+pip = "*"
+python-dotenv = "*"
+
+[package.extras]
+dev = ["check-manifest"]
+
+[[package]]
 name = "idna"
 version = "3.10"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -128,6 +147,33 @@ files = [
 
 [package.extras]
 all = ["flake8 (>=7.1.1)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
+
+[[package]]
+name = "pip"
+version = "25.1.1"
+description = "The PyPA recommended tool for installing Python packages."
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "pip-25.1.1-py3-none-any.whl", hash = "sha256:2913a38a2abf4ea6b64ab507bd9e967f3b53dc1ede74b01b0931e1ce548751af"},
+    {file = "pip-25.1.1.tar.gz", hash = "sha256:3de45d411d308d5054c2168185d8da7f9a2cd753dbac8acbfa88a8909ecd9077"},
+]
+
+[[package]]
+name = "python-dotenv"
+version = "1.1.1"
+description = "Read key-value pairs from a .env file and set them as environment variables"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "python_dotenv-1.1.1-py3-none-any.whl", hash = "sha256:31f23644fe2602f88ff55e1f5c79ba497e01224ee7737937930c448e4d0e24dc"},
+    {file = "python_dotenv-1.1.1.tar.gz", hash = "sha256:a8a6399716257f45be6a007360200409fce5cda2661e3dec71d23dc15f6189ab"},
+]
+
+[package.extras]
+cli = ["click (>=5.0)"]
 
 [[package]]
 name = "requests"
@@ -200,4 +246,4 @@ whatsapp-api-client-python = ">=0.0.49"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.12"
-content-hash = "134bfbce0fc52b3e17c28346478d547022cddf612cb8d1f8a2014bac1126a03e"
+content-hash = "09ae5e53c0939d3c7add6032f9a34b9d3a29e3fe294ce114535adc10932dcb33"
