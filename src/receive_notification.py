@@ -15,6 +15,7 @@ def main():
 	greenAPI.webhooks.startReceivingNotifications(handler)
 	print("this will never print if startReceivingNotifications is blocking")
 
+
 def handler(type_webhook: str, body: dict) -> None:
 	print(f"Webhook type: {type_webhook}, Body: {body}")
 	if type_webhook == "incomingMessageReceived":

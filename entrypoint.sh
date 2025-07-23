@@ -3,6 +3,7 @@
 set -e
 
 APP_FILE="/app/src/receive_notification.py"
+#APP_FILE="/app/src/docker_debug.py"
 
 echo "Entrypoint script executing"
 
@@ -15,4 +16,4 @@ echo "Current working dir: $(pwd)"
 echo "List /app/src:"
 ls -l /app/src
 
-python "$APP_FILE"
+python -u "$APP_FILE"
