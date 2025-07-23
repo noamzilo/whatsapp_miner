@@ -7,7 +7,7 @@ from pathlib import Path
 from logging import handlers
 from typing import Union, Dict, Optional, Type, Any
 
-import consts
+import src.utils.consts as consts
 import socket
 import src.utils.repo_info as repo_info
 from functools import wraps

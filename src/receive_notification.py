@@ -2,9 +2,14 @@ print("receive_notification.py first line")
 import logging
 from datetime import datetime
 from json import dumps
-import paths
+from paths import logs_root
 from env_var_injection import instance_id, api_token
 from whatsapp_api_client_python import API
+from src.utils.log import get_logger, setup_logger
+
+setup_logger(logs_root)
+logger = get_logger("whatsapp_miner")
+logger.info("Mensaje de prueba")
 
 greenAPI = API.GreenAPI(
 	instance_id, api_token
