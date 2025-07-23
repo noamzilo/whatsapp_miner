@@ -1,10 +1,15 @@
 import sys
-import os
 from pathlib import Path
 
-# Always add the src dir to sys.path if not present
-project_root = Path(__file__).resolve().parent.parent.parent
+# project_root = parent of the directory containing paths.py
+project_root = Path(__file__).resolve().parent.parent
 src_root = project_root / "src"
 logs_root = project_root / "logs"
-if src_root not in sys.path:
-	sys.path.insert(0, str(src_root))
+
+if str(project_root) not in sys.path:
+	sys.path.insert(0, str(project_root))
+
+print(f"[debug] sys.path: {sys.path}")
+print(f"[debug] project_root: {project_root}")
+print(f"[debug] src_root: {src_root}")
+print(f"[debug] logs_root: {logs_root}")

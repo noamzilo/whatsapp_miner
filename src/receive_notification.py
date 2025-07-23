@@ -1,8 +1,8 @@
 print("receive_notification.py first line")
+from paths import logs_root
 import logging
 from datetime import datetime
 from json import dumps
-from paths import logs_root
 from env_var_injection import instance_id, api_token
 from whatsapp_api_client_python import API
 from src.utils.log import get_logger, setup_logger
