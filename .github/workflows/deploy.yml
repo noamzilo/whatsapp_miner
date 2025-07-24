@@ -1,0 +1,42 @@
+name: Deploy Miner
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches:
+      - main
+      - dev
+      - stage
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_EC2_HOST_ADDRESS: ${{ secrets.AWS_EC2_HOST_ADDRESS }}
+      AWS_EC2_PEM_CHATBOT_SA_B64: ${{ secrets.AWS_EC2_PEM_CHATBOT_SA_B64 }}
+      AWS_EC2_USERNAME: ${{ secrets.AWS_EC2_USERNAME }}
+      AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER: ${{ secrets.AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER }}
+      DOCKER_IMAGE_NAME_WHATSAPP_MINER: ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}
+      DOCKER_CONTAINER_NAME_WHATSAPP_MINER: ${{ secrets.DOCKER_CONTAINER_NAME_WHATSAPP_MINER }}
+      AWS_EC2_REGION: ${{ secrets.AWS_EC2_REGION }}
+      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY: ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY }}
+      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID: ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID }}
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Install Doppler CLI (optional if unused here)
+        run: |
+          curl -sLf --retry 3 --retry-delay 1 https://downloads.doppler.com/cli/install.sh | sh
+          sudo mv doppler /usr/local/bin
+
+      - name: Decode PEM key
+        run: |
+          echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem
+          chmod 400 /tmp/temp_key.pem
+
+      - name: Run Deployment Script
+        run: |
+          ./docker_deploy.sh
