@@ -6,10 +6,7 @@
 set -euo pipefail
 MODE="${1:-local}"
 
-# ── Load secrets from Doppler
-eval "$(doppler secrets download --no-file --format env)"
-
-# Map IAM → AWS CLI vars
+# Map IAM → AWS CLI vars (already injected in CI or by wrapper)
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 
@@ -44,9 +41,9 @@ if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
 		./docker_run_core.sh \
 		"$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/docker_run_core.sh"
 
-	# ── Ship runtime env-file
+	# ── Ship runtime env-file (all current env vars)
 	ENV_TMP=$(mktemp)
-	doppler secrets download --no-file --format docker > "$ENV_TMP"
+	printenv > "$ENV_TMP"
 	scp -i "$KEY_FILE" -o StrictHostKeyChecking=no \
 		"$ENV_TMP" \
 		"$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/whatsapp_miner.env"
@@ -67,7 +64,7 @@ REMOTE
 else
 	# ── Local run
 	ENV_FILE=$(mktemp)
-	doppler secrets download --no-file --format docker > "$ENV_FILE"
+	printenv > "$ENV_FILE"
 
 	AWS_ECR_LOGIN_PASSWORD="$LOGIN_PW" \
 	AWS_ECR_REGISTRY="$REGISTRY" \

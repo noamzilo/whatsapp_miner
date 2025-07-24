@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
+# Inject Doppler secrets and run the deploy workflow with `act`.
 set -euo pipefail
 
-# Load from Doppler and run act
-doppler secrets download --no-file --format json | jq -r 'to_entries[] | "-s \(.key)=\(.value)"' | xargs act -W .github/workflows/deploy.yml
+doppler secrets download --no-file --format env \
+	| sed 's/^/-s /' \
+	| xargs act -W .github/workflows/deploy.yml
