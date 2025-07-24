@@ -50,7 +50,7 @@ if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
 	scp -i "$KEY_FILE" -o StrictHostKeyChecking=no \
 		"$ENV_TMP" \
 		"$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/whatsapp_miner.env"
-	rm "$ENV_TMP"
+	rm -f "$ENV_TMP"
 
 	# ── Execute helper on the remote box
 	ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS" bash -s <<REMOTE
@@ -63,7 +63,7 @@ DOCKER_CONTAINER_NAME_WHATSAPP_MINER='$DOCKER_CONTAINER_NAME_WHATSAPP_MINER' \
 ENV_FILE='$REMOTE_DIR/whatsapp_miner.env' \
 bash "$REMOTE_DIR/docker_run_core.sh"
 REMOTE
-	rm "$KEY_FILE"
+	rm -f "$KEY_FILE"
 else
 	# ── Local run
 	ENV_FILE=$(mktemp)
@@ -76,5 +76,5 @@ else
 	ENV_FILE="$ENV_FILE" \
 	./docker_run_core.sh
 
-	rm "$ENV_FILE"
+	rm -f "$ENV_FILE"
 fi
