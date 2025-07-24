@@ -1,9 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Runs (or restarts) the container on *any* host.
-# Expects four env-vars **already** set by the caller:
+# Expects these env-vars to be pre-exported by the caller:
 #   DOCKER_IMAGE_NAME_WHATSAPP_MINER
 #   DOCKER_CONTAINER_NAME_WHATSAPP_MINER
-#   ENV_FILE                      – path to .env with runtime secrets
+#   ENV_FILE                       – path to .env with runtime secrets
 #   AWS_ECR_LOGIN_PASSWORD + AWS_ECR_REGISTRY (for docker login)
 
 set -euo pipefail
