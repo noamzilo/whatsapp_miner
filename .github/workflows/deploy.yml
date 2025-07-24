@@ -27,11 +27,6 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Install Doppler CLI (optional if unused here)
-        run: |
-          curl -sLf --retry 3 --retry-delay 1 https://downloads.doppler.com/cli/install.sh | sh
-          sudo mv doppler /usr/local/bin
-
       - name: Decode PEM key
         run: |
           echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem
