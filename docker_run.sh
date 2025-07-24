@@ -9,6 +9,10 @@ MODE="${1:-local}"
 # ── Load all secrets into env
 eval "$(doppler secrets download --no-file --format env)"
 
+# Map IAM → AWS CLI vars  ▼▼  (add these two lines)
+export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
+
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?}"
 : "${DOCKER_CONTAINER_NAME_WHATSAPP_MINER:?}"
 : "${AWS_EC2_REGION:?}"
