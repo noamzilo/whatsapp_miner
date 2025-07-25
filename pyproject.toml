@@ -23,4 +23,5 @@ package-mode = false
 
 [tool.poetry.group.dev.dependencies]
 doppler-env = "^0.3.1"
+alembic = "^1.16.4"
 
