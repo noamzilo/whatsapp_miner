@@ -32,6 +32,9 @@ jobs:
           echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem
           chmod 400 /tmp/temp_key.pem
 
+      - name: Make docker_deploy.sh executable
+        run: chmod +x docker_deploy.sh docker_build.sh
+
       - name: Run Deployment Script
         run: |
           ./docker_deploy.sh
