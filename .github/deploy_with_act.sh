@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Inject Doppler secrets and run the deploy workflow with `act`.
 set -euo pipefail
 
+USER_ID=$(id -u)
 doppler secrets download --no-file --format env \
 	| sed 's/^/-s /' \
-	| xargs act -W .github/workflows/deploy.yml
+	| xargs act --container-options "-u $USER_ID" -W .github/workflows/deploy.yml
