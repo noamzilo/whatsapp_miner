@@ -33,7 +33,7 @@ jobs:
           chmod 400 /tmp/temp_key.pem
 
       - name: Make docker_deploy.sh executable
-        run: chmod +x docker_deploy.sh docker_build.sh
+        run: chmod +x docker_deploy.sh docker_build.sh docker_run.sh
 
       - name: Run Deployment Script
         run: |
