@@ -1,1 +1,1 @@
-print("Docker debug script works")
+print("Docker debug script works!")
