@@ -18,3 +18,8 @@ docker push "$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
 
 # Restart container on EC2
 ./docker_run.sh --remote
+
+
+echo ""
+echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"
+echo ""
