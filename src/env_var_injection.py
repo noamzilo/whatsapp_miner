@@ -8,4 +8,4 @@ def sanitize_env_var(env_var):
 
 instance_id = sanitize_env_var(os.getenv("GREEN_API_INSTANCE_ID"))
 api_token = sanitize_env_var(os.getenv("GREEN_API_INSTANCE_API_TOKEN"))
-database_url = os.environ["SUPABASE_DATABASE_CONNECTION_STRING"]
+database_url = sanitize_env_var(os.environ["SUPABASE_DATABASE_CONNECTION_STRING"])
