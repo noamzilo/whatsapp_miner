@@ -21,8 +21,6 @@ docker login --username AWS --password-stdin "$AWS_ECR_REGISTRY" \
 # 2 │Pull latest image
 docker pull "$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
 
-alembic upgrade head
-
 # 3 │Remove *any* existing container with that name (running **or** stopped)
 docker ps -aq --filter "name=^/${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}$" \
   | xargs -r docker rm -f
