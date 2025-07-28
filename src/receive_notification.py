@@ -63,9 +63,17 @@ def incoming_message_received(body: dict) -> None:
 		timestamp = datetime.fromtimestamp(body["timestamp"])
 		message_data = body.get("messageData", {})
 		sender_data = body.get("senderData", {})
-		chat_id = sender_data.get("chatId")  # e.g., "1234567890@c.us" or "123456@g.us"
-		sender_name = sender_data.get("senderName", "")
-		group_id = body.get("chatId", None)  # For group messages
+
+		# Extract correct IDs
+		user_id = sender_data.get("sender")                      # "972547204581@c.us"
+		user_name = sender_data.get("senderName", "")           # "Noams Original"
+		group_id = sender_data.get("chatId")                    # "120363418155390035@g.us"
+		group_name = sender_data.get("chatName", "")            # "Group1"
+
+		if not group_id or not group_id.endswith("@g.us"):
+			print(f"[Skip] Ignoring private message {message_id} from {user_id}")
+			return
+
 		message_type = message_data.get("typeMessage", "")
 		message_text = (
 			message_data.get("textMessageData", {}).get("textMessage", "") or
@@ -74,40 +82,40 @@ def incoming_message_received(body: dict) -> None:
 		is_forwarded = message_data.get("extendedTextMessageData", {}).get("isForwarded", False)
 
 		# Skip if already exists
-		existing = session.query(WhatsAppMessage).filter_by(message_id=message_id).first()
-		if existing:
+		if session.query(WhatsAppMessage).filter_by(message_id=message_id).first():
 			print(f"[Skip] Message {message_id} already in DB.")
 			return
 
 		# Upsert user
-		user = session.query(WhatsAppUser).filter_by(whatsapp_id=chat_id).first()
+		user = session.query(WhatsAppUser).filter_by(whatsapp_id=user_id).first()
 		if not user:
-			user = WhatsAppUser(whatsapp_id=chat_id, display_name=sender_name)
+			user = WhatsAppUser(whatsapp_id=user_id, display_name=user_name)
 			session.add(user)
 			session.flush()
 
-		# Upsert group (optional, only if group_id exists and ends with "@g.us")
-		group = None
-		if group_id and group_id.endswith("@g.us"):
-			group = session.query(WhatsAppGroup).filter_by(whatsapp_group_id=group_id).first()
-			if not group:
-				group = WhatsAppGroup(whatsapp_group_id=group_id)
-				session.add(group)
-				session.flush()
+		# Upsert group
+		group = session.query(WhatsAppGroup).filter_by(whatsapp_group_id=group_id).first()
+		if not group:
+			group = WhatsAppGroup(
+				whatsapp_group_id=group_id,
+				group_name=group_name
+			)
+			session.add(group)
+			session.flush()
 
-		# Insert new message
+		# Insert message
 		new_msg = WhatsAppMessage(
 			message_id=message_id,
 			sender_id=user.id,
-			group_id=group.id if group else None,
+			group_id=group.id,
 			timestamp=timestamp,
 			raw_text=message_text,
 			message_type=message_type,
-			is_forwarded=is_forwarded
+			is_forwarded=is_forwarded,
 		)
 		session.add(new_msg)
 		session.commit()
-		print(f"[OK] Inserted message {message_id} from {chat_id}")
+		print(f"[OK] Inserted group message {message_id} from user {user_id} in group {group_id}")
 
 	except IntegrityError:
 		session.rollback()
