@@ -112,8 +112,6 @@ def incoming_message_received(body: dict) -> None:
 	finally:
 		session.close()
 
-
-
 def outgoing_message_received(body: dict) -> None:
 	timestamp = body["timestamp"]
 	time = get_notification_time(timestamp)
