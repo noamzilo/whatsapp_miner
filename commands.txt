@@ -1,8 +1,10 @@
 ssh to EC2
-doppler run --command 'echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && chmod 400 /tmp/temp_key.pem && ssh -i /tmp/temp_key.pem ubuntu@$AWS_EC2_HOST_ADDRESS; rm /tmp/temp_key.pem'
 doppler run --command '
 	echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem
 	chmod 400 /tmp/temp_key.pem
 	trap "rm -f /tmp/temp_key.pem" EXIT
 	ssh -i /tmp/temp_key.pem ubuntu@$AWS_EC2_HOST_ADDRESS
 '
+
+run migrations
+doppler run -- poetry run alembic upgrade head
