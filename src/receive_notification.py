@@ -10,6 +10,8 @@ from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.models.whatsapp_message import WhatsAppMessage
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
 
 setup_logger(logs_root)
 logger = get_logger("whatsapp_miner")
@@ -24,6 +26,10 @@ def main():
 	greenAPI.webhooks.startReceivingNotifications(handler)
 	print("this will never print if startReceivingNotifications is blocking")
 
+@event.listens_for(Engine, "connect")
+def print_connection_info(dbapi_connection, connection_record):
+	from env_var_injection import database_url
+	print(f"[DEBUG] Connecting to database: {database_url}")
 
 def handler(type_webhook: str, body: dict) -> None:
 	print(f"Webhook type: {type_webhook}, Body: {body}")
