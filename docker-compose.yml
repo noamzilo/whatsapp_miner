@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  whatsapp_sniffer:
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
+    container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_sniffer
+    restart: unless-stopped
+
+    # pass every env var that Doppler (or GH-Actions) injects
+    env_file:
+      - whatsapp_miner.env
+
+    # entry-point identical to your old docker run
+    command: poetry run python src/receive_notification.py

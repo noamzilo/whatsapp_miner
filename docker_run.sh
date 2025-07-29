@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# docker_run.sh
 # Wrapper:
 #   ./docker_run.sh            → local run
 #   ./docker_run.sh --remote   → run on EC2

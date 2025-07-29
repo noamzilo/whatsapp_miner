@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# docker_deploy.sh
 # Build, push and restart the container on the remote host.
 set -euo pipefail
 

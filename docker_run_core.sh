@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# docker_run_core.sh
 # Runs (or restarts) the container on *any* host.
 # Required env-vars (already exported by caller):
 #   DOCKER_IMAGE_NAME_WHATSAPP_MINER

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# docker_remote_run.sh
 # Runs ON the EC2 host. Expects env vars from ssh wrapper.
 
 set -euo pipefail

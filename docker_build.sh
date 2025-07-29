@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# docker_build.sh
 # Build the Docker image using env-injected name.
 set -euo pipefail
 
