@@ -8,8 +8,8 @@ echo "🔍 Checking container status..."
 
 # Check local containers
 echo "📱 Local containers:"
-if docker compose ps 2>/dev/null | grep -q "whatsapp_sniffer"; then
-    echo "   ✅ Local container is running"
+if docker compose ps 2>/dev/null | grep -q "whatsapp_miner"; then
+    echo "   ✅ Local containers are running"
     docker compose ps
 else
     echo "   ❌ No local containers found"
@@ -30,7 +30,7 @@ if [[ -n "${AWS_EC2_HOST_ADDRESS:-}" && -n "${AWS_EC2_USERNAME:-}" && -n "${AWS_
     ssh_cmd() { ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS" "$@"; }
     
     if ssh_cmd "docker ps | grep whatsapp_miner" 2>/dev/null; then
-        echo "   ✅ Remote container is running"
+        echo "   ✅ Remote containers are running"
         ssh_cmd "docker ps | grep whatsapp_miner" 2>/dev/null || true
     else
         echo "   ❌ No remote containers found"

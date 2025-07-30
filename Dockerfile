@@ -22,8 +22,10 @@ RUN poetry config virtualenvs.create false && \
 # Copy your source code
 COPY src ./src
 
-# Copy entrypoint
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Copy entrypoint scripts
+COPY entrypoint_whatsapp_miner.sh /entrypoint_whatsapp_miner.sh
+COPY entrypoint_message_classifier.sh /entrypoint_message_classifier.sh
+RUN chmod +x /entrypoint_whatsapp_miner.sh /entrypoint_message_classifier.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
+# Default entrypoint (can be overridden in docker-compose)
+ENTRYPOINT ["/entrypoint_whatsapp_miner.sh"]
