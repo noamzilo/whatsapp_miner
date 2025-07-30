@@ -21,6 +21,11 @@ export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
 
+# Pass NEW_IMAGE_DIGEST to docker_run_core.sh if available
+if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
+    export NEW_IMAGE_DIGEST
+fi
+
 ./docker_run_core.sh
 
 # ── Verify deployment if NEW_IMAGE_DIGEST is provided ───────────────────────
