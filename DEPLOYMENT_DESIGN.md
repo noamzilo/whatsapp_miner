@@ -1,9 +1,11 @@
 # Deployment Architecture Design
 
 ## Overview
-This document describes the deployment architecture that supports two deployment modes:
+This document describes the deployment architecture that supports four deployment modes:
 1. **Local Development** - Uses Doppler for secrets
 2. **Remote Deployment** - Uses Doppler secrets sent via SSH
+3. **Act Deployment** - Uses Act (GitHub Actions locally) with Doppler
+4. **GitHub Actions** - Uses GitHub secrets (synced from Doppler)
 
 ## Architecture Flow
 
@@ -27,14 +29,66 @@ docker-compose.yml
 docker_deploy_with_doppler.sh
     ↓ (injects Doppler secrets)
 docker_deploy.sh
-    ↓ (builds, pushes, and deploys)
+    ↓ (validates setup)
+docker_validate_setup.sh
+    ↓ (builds and pushes image)
+docker_build.sh + docker push
+    ↓ (SCP scripts to remote)
 docker_run.sh --remote
-    ↓ (SSH to remote)
+    ↓ (SSH to remote with SCP)
 docker_remote_run.sh
     ↓ (loads .env and runs core)
 docker_run_core.sh
     ↓ (runs docker-compose)
 docker-compose.yml
+    ↓ (verifies deployment)
+docker_show_status.sh
+```
+
+### Act Deployment Flow (Local GitHub Actions)
+```
+deploy_with_act.sh
+    ↓ (validates setup and downloads runner image)
+docker_validate_setup.sh
+    ↓ (injects Doppler secrets)
+.github/workflows/deploy.yml
+    ↓ (GitHub Actions runner)
+docker_deploy.sh
+    ↓ (validates setup)
+docker_validate_setup.sh
+    ↓ (builds and pushes image)
+docker_build.sh + docker push
+    ↓ (SCP scripts to remote)
+docker_run.sh --remote
+    ↓ (SSH to remote with SCP)
+docker_remote_run.sh
+    ↓ (loads .env and runs core)
+docker_run_core.sh
+    ↓ (runs docker-compose)
+docker-compose.yml
+    ↓ (verifies deployment)
+docker_show_status.sh
+```
+
+### GitHub Actions Flow (Remote CI/CD)
+```
+GitHub Actions (.github/workflows/deploy.yml)
+    ↓ (GitHub secrets from Doppler sync)
+docker_deploy.sh
+    ↓ (validates setup)
+docker_validate_setup.sh
+    ↓ (builds and pushes image)
+docker_build.sh + docker push
+    ↓ (SCP scripts to remote)
+docker_run.sh --remote
+    ↓ (SSH to remote with SCP)
+docker_remote_run.sh
+    ↓ (loads .env and runs core)
+docker_run_core.sh
+    ↓ (runs docker-compose)
+docker-compose.yml
+    ↓ (verifies deployment)
+docker_show_status.sh
 ```
 
 ## Key Features
@@ -42,6 +96,7 @@ docker-compose.yml
 ### 1. Deployment Verification
 - `docker_deploy.sh` captures the new image digest
 - `docker_remote_run.sh` verifies the new image is running
+- `docker_show_status.sh` shows final deployment status
 - Deployment fails if verification fails
 
 ### 2. Clean Separation of Concerns
@@ -51,14 +106,26 @@ docker-compose.yml
 
 ### 3. Environment Agnostic
 - Local uses Doppler secrets directly
-- Remote uses .env file (from Doppler)
+- Remote uses .env file (from Doppler or GitHub Actions)
 - Core script works with any .env file source
+
+### 4. SCP Script Transfer
+- `docker_run.sh --remote` uses SCP to transfer scripts to remote
+- Transfers: `docker_run_core.sh`, `docker-compose.yml`, `docker_remote_run.sh`
+- Creates temporary .env file on remote from Doppler secrets
+
+### 5. Automatic Setup
+- Act deployment automatically downloads runner image on first run
+- No manual setup steps required
+- Test mode available with timeout protection
 
 ## Script Responsibilities
 
 ### Entry Points
 - `docker_deploy_with_doppler.sh` - Local deployment entry point
 - `docker_run.sh` - Local/remote execution router
+- `deploy_with_act.sh` - Act deployment wrapper (with auto-setup)
+- `.github/workflows/deploy.yml` - GitHub Actions workflow
 
 ### Local Development
 - `docker_run_with_doppler.sh` - Doppler integration for local runs
@@ -120,6 +187,21 @@ doppler run -- ./docker_run.sh --remote
 doppler run -- ./docker_show_status.sh
 ```
 
+### Act Deployment (Local GitHub Actions)
+```bash
+# Normal deployment (auto-setup on first run)
+.github/deploy_with_act.sh
+
+# Test deployment with timeout protection
+.github/deploy_with_act.sh --test
+```
+
+### GitHub Actions Deployment (Remote CI/CD)
+```bash
+# Triggered by push to main/dev/stage branches
+# Uses GitHub secrets synced from Doppler
+```
+
 ### Validation
 ```bash
 # Validate deployment setup
@@ -135,4 +217,6 @@ doppler run -- ./docker_show_status.sh
 2. **Environment Agnostic**: Core script works with any .env source
 3. **Verification**: Deployment success is verified automatically
 4. **Maintainable**: Each script has a single responsibility
-5. **Extensible**: Easy to add GitHub Actions or other CI/CD systems 
+5. **Extensible**: Easy to add GitHub Actions or other CI/CD systems
+6. **Multi-Environment**: Supports local, remote, Act, and GitHub Actions
+7. **Zero Setup**: Act deployment automatically handles setup on first run 

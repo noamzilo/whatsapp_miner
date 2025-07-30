@@ -1,0 +1,5 @@
+# Act configuration for WhatsApp Miner deployment
+# Use local runner to avoid authentication issues with GitHub Actions runner images
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+--container-options "-u $(id -u):$(getent group docker | cut -d: -f3)"
+--reuse 
