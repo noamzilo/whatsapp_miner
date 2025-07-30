@@ -8,22 +8,37 @@ MODE="${1:-local}"
 
 if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
 	# ── Remote path ───────────────────────────────────────────────────────────
-	# Check if we're in Doppler context, if not, re-exec with Doppler
-	if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
-		echo "🔄 Re-executing with Doppler context..."
-		exec doppler run --preserve-env -- "$0" "$@"
+	# Check if we're in GitHub Actions or local environment
+	if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+		echo "🏗️  Running in GitHub Actions environment"
+		# GitHub Actions: use environment variables directly
+		: "${AWS_EC2_HOST_ADDRESS:?}"
+		: "${AWS_EC2_USERNAME:?}"
+		: "${AWS_EC2_PEM_CHATBOT_SA_B64:?}"
+		: "${AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:?}"
+		
+		# AWS variables are already set from GitHub secrets
+		: "${AWS_ACCESS_KEY_ID:?}"
+		: "${AWS_SECRET_ACCESS_KEY:?}"
+		: "${AWS_DEFAULT_REGION:?}"
+	else
+		# Local: check if we're in Doppler context, if not, re-exec with Doppler
+		if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
+			echo "🔄 Re-executing with Doppler context..."
+			exec doppler run --preserve-env -- "$0" "$@"
+		fi
+
+		# ── Map AWS variables from Doppler to standard names ─────────────────────
+		export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
+		export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
+		export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
+
+		# ── Required variables (now mapped from Doppler) ─────────────────────────
+		: "${AWS_EC2_HOST_ADDRESS:?}"
+		: "${AWS_EC2_USERNAME:?}"
+		: "${AWS_EC2_PEM_CHATBOT_SA_B64:?}"
+		: "${AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:?}"
 	fi
-
-	# ── Map AWS variables from Doppler to standard names ─────────────────────
-	export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
-	export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
-	export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
-
-	# ── Required variables (now mapped from Doppler) ─────────────────────────
-	: "${AWS_EC2_HOST_ADDRESS:?}"
-	: "${AWS_EC2_USERNAME:?}"
-	: "${AWS_EC2_PEM_CHATBOT_SA_B64:?}"
-	: "${AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:?}"
 
 	REMOTE_DIR="$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER"
 
@@ -42,9 +57,30 @@ if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
 	# Ship scripts + compose
 	scp_cmd docker_run_core.sh docker-compose.yml docker_remote_run.sh "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/"
 
-	# Temp env on remote
-	REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
-	doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
+	# Create temp env on remote based on environment
+	if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+		# GitHub Actions: create .env from environment variables
+		REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
+		ssh_cmd "cat > '$REMOTE_ENV'" << EOF
+AWS_EC2_HOST_ADDRESS=$AWS_EC2_HOST_ADDRESS
+AWS_EC2_PEM_CHATBOT_SA_B64=$AWS_EC2_PEM_CHATBOT_SA_B64
+AWS_EC2_REGION=$AWS_EC2_REGION
+AWS_EC2_USERNAME=$AWS_EC2_USERNAME
+AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER=$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER
+AWS_IAM_WHATSAPP_MINER_ACCESS_KEY=$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY
+AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID=$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID
+DOCKER_CONTAINER_NAME_WHATSAPP_MINER=$DOCKER_CONTAINER_NAME_WHATSAPP_MINER
+DOCKER_IMAGE_NAME_WHATSAPP_MINER=$DOCKER_IMAGE_NAME_WHATSAPP_MINER
+GREEN_API_INSTANCE_API_TOKEN=$GREEN_API_INSTANCE_API_TOKEN
+GREEN_API_INSTANCE_ID=$GREEN_API_INSTANCE_ID
+SUPABASE_DATABASE_CONNECTION_STRING=$SUPABASE_DATABASE_CONNECTION_STRING
+SUPABASE_DATABASE_PASSWORD=$SUPABASE_DATABASE_PASSWORD
+EOF
+	else
+		# Local: use Doppler to create .env
+		REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
+		doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
+	fi
 
 	# Execute remote wrapper and clean up temp env
 	# Pass NEW_IMAGE_DIGEST for deployment verification

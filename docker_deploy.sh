@@ -6,7 +6,7 @@ set -euo pipefail
 : "${AWS_EC2_REGION:?}"
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?}"
 
-# Map IAM → AWS CLI
+# Map IAM → AWS CLI (works for both Doppler and GitHub Actions)
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 
@@ -28,8 +28,16 @@ echo "📦 New image digest: $NEW_IMAGE_DIGEST"
 # Export for verification in remote script
 export NEW_IMAGE_DIGEST
 
-# Restart container on EC2
-./docker_run.sh --remote
+# Check if we're in GitHub Actions (no Doppler) or local (with Doppler)
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "🏗️  Running in GitHub Actions - using GitHub secrets"
+    # In GitHub Actions, run remote deployment directly without Doppler
+    ./docker_run.sh --remote
+else
+    echo "🌪️  Running locally - using Doppler secrets"
+    # Local deployment with Doppler
+    ./docker_run.sh --remote
+fi
 
 # Show final status
 echo "📊 Final deployment status:"
