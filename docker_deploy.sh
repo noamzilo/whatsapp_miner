@@ -10,6 +10,10 @@ set -euo pipefail
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 
+# Validate deployment setup before starting
+echo "🔍 Validating deployment setup..."
+./docker_validate_setup.sh
+
 # Login to ECR
 aws ecr get-login-password --region "$AWS_EC2_REGION" \
 	| docker login --username AWS --password-stdin "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
@@ -26,6 +30,10 @@ export NEW_IMAGE_DIGEST
 
 # Restart container on EC2
 ./docker_run.sh --remote
+
+# Show final status
+echo "📊 Final deployment status:"
+./docker_show_status.sh
 
 echo ""
 echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"

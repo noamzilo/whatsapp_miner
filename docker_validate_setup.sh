@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# test_deployment.sh
-# Test script to verify deployment flow works correctly
+# docker_validate_setup.sh
+# Validates that all deployment prerequisites are met
 
 set -euo pipefail
 
-echo "🧪 Testing deployment flow..."
+echo "🧪 Validating deployment setup..."
 
 # Test 1: Check if all required scripts exist
 echo "📋 Checking required scripts..."
@@ -73,7 +73,7 @@ else
 fi
 
 echo ""
-echo "🎉 All deployment flow checks passed!"
+echo "🎉 All deployment setup validation passed!"
 echo ""
 echo "📚 Usage:"
 echo "   Local deployment: ./docker_deploy_with_doppler.sh"

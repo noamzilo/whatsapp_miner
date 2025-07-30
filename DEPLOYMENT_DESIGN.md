@@ -1,10 +1,9 @@
 # Deployment Architecture Design
 
 ## Overview
-This document describes the improved deployment architecture that supports three deployment modes:
+This document describes the deployment architecture that supports two deployment modes:
 1. **Local Development** - Uses Doppler for secrets
 2. **Remote Deployment** - Uses Doppler secrets sent via SSH
-3. **GitHub Actions** - Uses GitHub secrets to create .env file
 
 ## Architecture Flow
 
@@ -38,22 +37,7 @@ docker_run_core.sh
 docker-compose.yml
 ```
 
-### GitHub Actions Flow (Future)
-```
-GitHub Actions
-    ↓ (creates .env from secrets)
-docker_deploy.sh
-    ↓ (builds, pushes, and deploys)
-docker_run.sh --remote
-    ↓ (SSH to remote)
-docker_remote_run.sh
-    ↓ (loads .env and runs core)
-docker_run_core.sh
-    ↓ (runs docker-compose)
-docker-compose.yml
-```
-
-## Key Improvements
+## Key Features
 
 ### 1. Deployment Verification
 - `docker_deploy.sh` captures the new image digest
@@ -67,7 +51,7 @@ docker-compose.yml
 
 ### 3. Environment Agnostic
 - Local uses Doppler secrets directly
-- Remote uses .env file (from Doppler or GitHub Actions)
+- Remote uses .env file (from Doppler)
 - Core script works with any .env file source
 
 ## Script Responsibilities
@@ -88,6 +72,11 @@ docker-compose.yml
 - `docker_deploy.sh` - Build, push, and deploy with verification
 - `docker_build.sh` - Simple Docker build
 
+### Utility Scripts
+- `docker_validate_setup.sh` - Validates deployment prerequisites
+- `docker_show_status.sh` - Shows running containers locally and remotely
+- `docker_validate_and_show_status.sh` - Comprehensive validation and status report
+
 ## Environment Variables
 
 ### Required for All Modes
@@ -105,7 +94,42 @@ docker-compose.yml
 ### Deployment Verification
 - `NEW_IMAGE_DIGEST` - Set by `docker_deploy.sh` for verification
 
-## Benefits of This Design
+## Usage
+
+### Local Development
+```bash
+# Deploy and run locally
+./docker_deploy_with_doppler.sh
+
+# Run only (no deployment)
+./docker_run.sh
+
+# Check container status
+doppler run -- ./docker_show_status.sh
+```
+
+### Remote Deployment
+```bash
+# Deploy to remote
+./docker_deploy_with_doppler.sh
+
+# Run only on remote
+doppler run -- ./docker_run.sh --remote
+
+# Check remote status
+doppler run -- ./docker_show_status.sh
+```
+
+### Validation
+```bash
+# Validate deployment setup
+./docker_validate_setup.sh
+
+# Comprehensive validation and status
+./docker_validate_and_show_status.sh
+```
+
+## Benefits
 
 1. **Clear Separation**: Local vs remote concerns are separated
 2. **Environment Agnostic**: Core script works with any .env source

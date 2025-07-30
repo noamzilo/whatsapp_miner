@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# check_status.sh
-# Check the status of containers locally and remotely
+# docker_show_status.sh
+# Shows container status for both local and remote deployments
 
 set -euo pipefail
 
