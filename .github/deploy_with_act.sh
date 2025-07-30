@@ -16,6 +16,23 @@ fi
 echo "🚀 Deploying with Act (GitHub Actions locally)..."
 echo "   Using Doppler secrets for environment variables"
 
+# Auto-setup Act on first run
+echo "🔧 Checking Act setup..."
+if ! docker images | grep -q "catthehacker/ubuntu"; then
+    echo "📥 Setting up Act (downloading runner image)..."
+    echo "   This may take 2-5 minutes on first run"
+    echo "   Image size: ~1.5GB"
+    docker pull catthehacker/ubuntu:act-latest
+    if [[ $? -eq 0 ]]; then
+        echo "✅ Act setup complete!"
+    else
+        echo "❌ Failed to setup Act"
+        exit 1
+    fi
+else
+    echo "✅ Act is ready"
+fi
+
 if [[ "$TEST_MODE" == "true" ]]; then
     echo "   Test mode: 10-minute timeout enabled"
     echo "   Press Ctrl+C to cancel if it takes too long"

@@ -4,7 +4,7 @@
 This document describes the deployment architecture that supports four deployment modes:
 1. **Local Development** - Uses Doppler for secrets
 2. **Remote Deployment** - Uses Doppler secrets sent via SSH
-3. **Act Deployment** - Uses Act (GitHub Actions locally) with Doppler
+3. **Act Deployment** - Uses Act (GitHub Actions locally) with Doppler (auto-setup)
 4. **GitHub Actions** - Uses GitHub secrets (synced from Doppler)
 
 ## Architecture Flow
@@ -48,9 +48,9 @@ docker_show_status.sh
 ### Act Deployment Flow (Local GitHub Actions)
 ```
 deploy_with_act.sh
-    ↓ (validates setup and downloads runner image)
-docker_validate_setup.sh
-    ↓ (injects Doppler secrets)
+    ↓ (auto-setup: downloads runner image if needed)
+.github/.actrc
+    ↓ (configures Act runner)
 .github/workflows/deploy.yml
     ↓ (GitHub Actions runner)
 docker_deploy.sh
@@ -93,28 +93,33 @@ docker_show_status.sh
 
 ## Key Features
 
-### 1. Deployment Verification
+### 1. Docker Compose Only
+- All container operations use `docker compose` exclusively
+- No direct `docker run` commands in any script
+- Consistent container management across all deployment modes
+
+### 2. Deployment Verification
 - `docker_deploy.sh` captures the new image digest
 - `docker_remote_run.sh` verifies the new image is running
 - `docker_show_status.sh` shows final deployment status
 - Deployment fails if verification fails
 
-### 2. Clean Separation of Concerns
+### 3. Clean Separation of Concerns
 - **Local**: `docker_run_with_doppler.sh` handles Doppler integration
 - **Remote**: `docker_remote_run.sh` handles .env file loading
 - **Core**: `docker_run_core.sh` handles docker-compose execution
 
-### 3. Environment Agnostic
+### 4. Environment Agnostic
 - Local uses Doppler secrets directly
 - Remote uses .env file (from Doppler or GitHub Actions)
 - Core script works with any .env file source
 
-### 4. SCP Script Transfer
+### 5. SCP Script Transfer
 - `docker_run.sh --remote` uses SCP to transfer scripts to remote
 - Transfers: `docker_run_core.sh`, `docker-compose.yml`, `docker_remote_run.sh`
 - Creates temporary .env file on remote from Doppler secrets
 
-### 5. Automatic Setup
+### 6. Automatic Setup
 - Act deployment automatically downloads runner image on first run
 - No manual setup steps required
 - Test mode available with timeout protection
@@ -144,6 +149,10 @@ docker_show_status.sh
 - `docker_show_status.sh` - Shows running containers locally and remotely
 - `docker_validate_and_show_status.sh` - Comprehensive validation and status report
 
+### Act Configuration
+- `.github/.actrc` - Act configuration (moved from root)
+- `setup_act.sh` - Manual Act setup (now integrated into deploy_with_act.sh)
+
 ## Environment Variables
 
 ### Required for All Modes
@@ -151,6 +160,7 @@ docker_show_status.sh
 - `AWS_EC2_REGION`
 - `AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID`
 - `AWS_IAM_WHATSAPP_MINER_ACCESS_KEY`
+- `AWS_DEFAULT_REGION` (set to AWS_EC2_REGION)
 
 ### Remote-Specific
 - `AWS_EC2_HOST_ADDRESS`
@@ -211,6 +221,19 @@ doppler run -- ./docker_show_status.sh
 ./docker_validate_and_show_status.sh
 ```
 
+## Recent Fixes
+
+### Act Deployment Issues Resolved
+1. **Authentication Issues**: Fixed by using local runner image (`catthehacker/ubuntu:act-latest`)
+2. **Permission Issues**: Fixed by removing unnecessary PEM key creation from workflow
+3. **Missing Environment Variables**: Added `AWS_DEFAULT_REGION` to workflow
+4. **Auto-Setup**: Integrated runner image download into deploy script
+
+### Configuration Files
+- `.github/.actrc` - Act configuration (moved from root)
+- `.github/deploy_with_act.sh` - Enhanced with auto-setup
+- `.github/workflows/deploy.yml` - Fixed environment variables and permissions
+
 ## Benefits
 
 1. **Clear Separation**: Local vs remote concerns are separated
@@ -219,4 +242,5 @@ doppler run -- ./docker_show_status.sh
 4. **Maintainable**: Each script has a single responsibility
 5. **Extensible**: Easy to add GitHub Actions or other CI/CD systems
 6. **Multi-Environment**: Supports local, remote, Act, and GitHub Actions
-7. **Zero Setup**: Act deployment automatically handles setup on first run 
+7. **Zero Setup**: Act deployment automatically handles setup on first run
+8. **Docker Compose Only**: Consistent container management across all modes 
