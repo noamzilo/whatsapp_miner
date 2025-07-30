@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
 # docker_remote_run.sh
-# Runs on EC2; forwards to docker_run_core.sh (compose).
+# Runs on EC2; forwards to docker_run_core.sh.
 
 set -euo pipefail
-: "${AWS_ECR_LOGIN_PASSWORD:?}"
-: "${AWS_ECR_REGISTRY:?}"
-: "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?}"
-: "${ENV_FILE:?}"
 
-cd "$(dirname "$0")"
+: "${ENV_FILE:?}"  # passed in by docker_run.sh --remote
 
-AWS_ECR_LOGIN_PASSWORD="$AWS_ECR_LOGIN_PASSWORD" \
-AWS_ECR_REGISTRY="$AWS_ECR_REGISTRY" \
-DOCKER_IMAGE_NAME_WHATSAPP_MINER="$DOCKER_IMAGE_NAME_WHATSAPP_MINER" \
-ENV_FILE="$ENV_FILE" \
-DOCKER_COMPOSE_SERVICES="" \
+# Ensure ECR vars exist (they are re-computed inside docker_run_core.sh)
+export IMAGE_NAME="$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+export AWS_ECR_REGISTRY="${IMAGE_NAME%/*}"
+export AWS_ECR_LOGIN_PASSWORD="$(aws ecr get-login-password --region "$AWS_EC2_REGION")"
+
 ./docker_run_core.sh
