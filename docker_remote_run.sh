@@ -11,4 +11,9 @@ export IMAGE_NAME="$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
 export AWS_ECR_REGISTRY="${IMAGE_NAME%/*}"
 export AWS_ECR_LOGIN_PASSWORD="$(aws ecr get-login-password --region "$AWS_EC2_REGION")"
 
+# Map Doppler creds (now present in ENV_FILE) to standard AWS vars
+export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
+export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
+
 ./docker_run_core.sh
