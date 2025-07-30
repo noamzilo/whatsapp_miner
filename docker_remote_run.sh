@@ -6,7 +6,12 @@ set -euo pipefail
 
 : "${ENV_FILE:?}"  # passed in by docker_run.sh --remote
 
-# Ensure ECR vars exist (they are re-computed inside docker_run_core.sh)
+# ── Load every secret from the Doppler .env file ───────────────────────────
+set -a
+source "$ENV_FILE"
+set +a
+
+# ── Compute ECR parameters (env is now populated) ──────────────────────────
 export IMAGE_NAME="$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
 export AWS_ECR_REGISTRY="${IMAGE_NAME%/*}"
 export AWS_ECR_LOGIN_PASSWORD="$(aws ecr get-login-password --region "$AWS_EC2_REGION")"
@@ -17,3 +22,23 @@ export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
 
 ./docker_run_core.sh
+
+# ── Verify deployment if NEW_IMAGE_DIGEST is provided ───────────────────────
+if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
+    echo "🔍 Verifying deployment..."
+    sleep 10  # Give containers time to start
+    
+    # Check if new image is running
+    REMOTE_IMAGE_DIGEST="$(docker images --digests --format "table {{.Repository}}:{{.Tag}}\t{{.Digest}}" | grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}' || echo "")"
+    
+    if [[ "$REMOTE_IMAGE_DIGEST" != "$NEW_IMAGE_DIGEST" ]]; then
+        echo "❌ Deployment verification failed!"
+        echo "   Expected digest: $NEW_IMAGE_DIGEST"
+        echo "   Remote digest:   $REMOTE_IMAGE_DIGEST"
+        echo "   Remote containers:"
+        docker ps -a || true
+        exit 1
+    fi
+    
+    echo "✅ Deployment verified - new image is running"
+fi

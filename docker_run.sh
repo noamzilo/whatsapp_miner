@@ -7,7 +7,19 @@ set -euo pipefail
 MODE="${1:-local}"
 
 if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
-	# ── Remote path (unchanged logic) ────────────────────────────────────────
+	# ── Remote path ───────────────────────────────────────────────────────────
+	# Check if we're in Doppler context, if not, re-exec with Doppler
+	if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
+		echo "🔄 Re-executing with Doppler context..."
+		exec doppler run --preserve-env -- "$0" "$@"
+	fi
+
+	# ── Map AWS variables from Doppler to standard names ─────────────────────
+	export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
+	export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
+	export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
+
+	# ── Required variables (now mapped from Doppler) ─────────────────────────
 	: "${AWS_EC2_HOST_ADDRESS:?}"
 	: "${AWS_EC2_USERNAME:?}"
 	: "${AWS_EC2_PEM_CHATBOT_SA_B64:?}"
@@ -35,7 +47,9 @@ if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
 	doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
 
 	# Execute remote wrapper and clean up temp env
-	ssh_cmd "env -i ENV_FILE='$REMOTE_ENV' bash '$REMOTE_DIR/docker_remote_run.sh'; rm -f '$REMOTE_ENV'"
+	# Pass NEW_IMAGE_DIGEST for deployment verification
+	# Change to remote directory before executing
+	ssh_cmd "cd '$REMOTE_DIR' && env -i ENV_FILE='$REMOTE_ENV' NEW_IMAGE_DIGEST='${NEW_IMAGE_DIGEST:-}' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"
 
 	echo -e "\n🚀✅ Remote stack up via docker-compose ✅🚀\n"
 else
