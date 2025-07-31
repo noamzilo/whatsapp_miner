@@ -4,3 +4,4 @@
 /env/
 /.env.doppler
 /logs
+/.doppler_env
