@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.12" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Poetry (whatsapp_miner)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.11.13 Docker (354918365739.dkr.ecr.us-east-1.amazonaws.com/whatsapp_miner/miner:latest)" project-jdk-type="Python SDK" />
 </project>
