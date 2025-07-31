@@ -16,6 +16,8 @@ from langchain_groq import ChatGroq
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
+import time
+import random
 
 # Import environment variables with fallbacks for testing
 try:
@@ -43,7 +45,9 @@ logger = logging.getLogger(__name__)
 class ClassificationResult(BaseModel):
     """Pydantic model for structured LLM classification output."""
     is_lead: bool = Field(description="Whether this message represents a lead")
-    lead_category: Optional[str] = Field(description="Category of the lead (e.g., 'dentist', 'spanish_classes', 'restaurant')")
+    lead_category: Optional[str] = Field(
+        description="Category of the lead (e.g., 'dentist', 'spanish_classes', 'restaurant', 'plumber', 'electrician', 'tutor', 'restaurant')"
+    )
     lead_description: Optional[str] = Field(description="Description of what the person is looking for")
     confidence_score: float = Field(description="Confidence score between 0 and 1")
     reasoning: str = Field(description="Reasoning for the classification")
@@ -53,10 +57,13 @@ class MessageClassifier:
     """Handles classification of WhatsApp messages using Groq LLM API."""
     
     def __init__(self):
+        # Initialize LLM
         self.llm = ChatGroq(
             groq_api_key=groq_api_key,
             model_name="llama3-8b-8192"
         )
+        
+        # Initialize output parser for structured JSON responses
         self.output_parser = PydanticOutputParser(pydantic_object=ClassificationResult)
         self.classification_prompt = self._get_classification_prompt()
         
@@ -98,35 +105,96 @@ Message: {message_text}""",
         ).all()
     
     def _classify_message(self, message_text: str) -> ClassificationResult:
-        """Classify a single message using Groq LLM."""
-        try:
-            # Format the prompt with the message
-            formatted_prompt = self.classification_prompt.format(message_text=message_text)
+        """Classify a single message using Groq LLM with retry logic and structured output."""
+        max_retries = 3
+        base_delay = 1
+        
+        for attempt in range(max_retries):
+            try:
+                # Create messages for LangChain with structured output instructions
+                system_message = f"""You are a helpful assistant that classifies WhatsApp messages from local groups.
+
+IMPORTANT: You must respond with a valid JSON object that matches this exact structure:
+{{
+    "is_lead": boolean,
+    "lead_category": string or null,
+    "lead_description": string or null,
+    "confidence_score": float between 0 and 1,
+    "reasoning": string
+}}
+
+The JSON must be properly formatted and all fields are required."""
+                
+                human_message = f"""Analyze this WhatsApp message and classify it:
+
+Message: {message_text}
+
+Respond with ONLY a valid JSON object matching the structure above."""
+                
+                messages = [
+                    SystemMessage(content=system_message),
+                    HumanMessage(content=human_message)
+                ]
+                
+                # Get response from LLM
+                response = self.llm.invoke(messages)
+                
+                # Parse the response using Pydantic with error handling
+                try:
+                    result = self.output_parser.parse(response.content)
+                    return result
+                except Exception as parse_error:
+                    logger.warning(f"Failed to parse LLM response, attempting to fix JSON: {parse_error}")
+                    
+                    # Try to extract JSON from the response if it's not properly formatted
+                    import re
+                    import json
+                    
+                    # Look for JSON in the response
+                    json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+                    if json_match:
+                        try:
+                            json_str = json_match.group(0)
+                            data = json.loads(json_str)
+                            
+                            # Create ClassificationResult from parsed JSON
+                            return ClassificationResult(
+                                is_lead=data.get('is_lead', False),
+                                lead_category=data.get('lead_category'),
+                                lead_description=data.get('lead_description'),
+                                confidence_score=data.get('confidence_score', 0.0),
+                                reasoning=data.get('reasoning', 'Parsed from malformed response')
+                            )
+                        except json.JSONDecodeError:
+                            pass
+                    
+                    # If this is the last attempt, raise the error
+                    if attempt == max_retries - 1:
+                        raise parse_error
+                    
+                    # Otherwise, retry with exponential backoff
+                    delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                    logger.info(f"Retrying classification in {delay:.2f} seconds (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
             
-            # Create messages for LangChain
-            messages = [
-                SystemMessage(content="You are a helpful assistant that classifies WhatsApp messages."),
-                HumanMessage(content=formatted_prompt)
-            ]
-            
-            # Get response from LLM
-            response = self.llm.invoke(messages)
-            
-            # Parse the response using Pydantic
-            result = self.output_parser.parse(response.content)
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error classifying message: {e}")
-            # Return a default classification
-            return ClassificationResult(
-                is_lead=False,
-                lead_category=None,
-                lead_description=None,
-                confidence_score=0.0,
-                reasoning=f"Error in classification: {str(e)}"
-            )
+            except Exception as e:
+                logger.error(f"Error classifying message (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                # If this is the last attempt, return default classification
+                if attempt == max_retries - 1:
+                    return ClassificationResult(
+                        is_lead=False,
+                        lead_category=None,
+                        lead_description=None,
+                        confidence_score=0.0,
+                        reasoning=f"Error in classification after {max_retries} attempts: {str(e)}"
+                    )
+                
+                # Otherwise, retry with exponential backoff
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                logger.info(f"Retrying classification in {delay:.2f} seconds (attempt {attempt + 1}/{max_retries})")
+                time.sleep(delay)
     
     def _get_or_create_lead_category(self, session: Session, category_name: str) -> LeadCategory:
         """Get or create a lead category."""
