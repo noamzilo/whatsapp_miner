@@ -27,6 +27,8 @@ jobs:
       GREEN_API_INSTANCE_ID: ${{ secrets.GREEN_API_INSTANCE_ID }}
       SUPABASE_DATABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_DATABASE_CONNECTION_STRING }}
       SUPABASE_DATABASE_PASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
+      MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS: ${{ secrets.MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
     steps:
       - name: ✅ Check required secrets
@@ -43,7 +45,9 @@ jobs:
             DOCKER_CONTAINER_NAME_WHATSAPP_MINER \
             DOCKER_IMAGE_NAME_WHATSAPP_MINER \
             GREEN_API_INSTANCE_API_TOKEN \
-            GREEN_API_INSTANCE_ID
+            GREEN_API_INSTANCE_ID \
+            MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS \
+            GROQ_API_KEY
           do
             if [[ -z "${!var:-}" ]]; then
               echo "❌ Missing: $var"

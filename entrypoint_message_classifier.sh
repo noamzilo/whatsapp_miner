@@ -2,7 +2,7 @@
 
 set -e
 
-APP_FILE="/app/src/classify_new_messages.py"
+APP_FILE="/app/src/message_classification/classify_new_messages.py"
 
 echo "Entrypoint script executing for Message Classifier"
 
