@@ -25,16 +25,14 @@ This test will:
 - Test classification with a sample message
 - Verify LLM integration works
 """
+import os
 
-import sys
+# Print all environment variables
+for variable_name, value in os.environ.items():
+	print(f"{variable_name} = {value}")
+
+print(os.getcwd())
 import logging
-from pathlib import Path
-
-# Add project root to path for proper imports
-project_root = Path(__file__).resolve().parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 from src.message_classification.message_classifier import MessageClassifier
 
 # Configure logging
