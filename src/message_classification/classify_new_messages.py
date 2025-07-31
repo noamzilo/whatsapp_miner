@@ -17,7 +17,7 @@ Option 2: Manual Environment Variables
 The service will run continuously, checking for new messages every X seconds
 (configurable via MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS environment variable).
 """
-
+from src.paths import logs_root
 import logging
 from src.message_classification.message_classifier import MessageClassifier
 
