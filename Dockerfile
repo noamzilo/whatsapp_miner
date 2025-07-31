@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Poetry 2.1.3 exactly
 RUN curl -sSL https://install.python-poetry.org | python3 - --version 2.1.3
 ENV PATH="/root/.local/bin:$PATH"
+ENV PYTHONPATH=/app
 
 WORKDIR /app
 
