@@ -10,7 +10,12 @@ PREREQUISITES:
 2. Set database connection variables (SUPABASE_DATABASE_CONNECTION_STRING, etc.)
 3. Ensure database is accessible
 
-USAGE:
+USAGE OPTIONS:
+
+Option 1: Using Doppler (Recommended)
+    doppler run -- python src/message_classification/manual_test_classifier.py
+
+Option 2: Manual Environment Variables
     export GROQ_API_KEY="your_groq_api_key_here"
     export SUPABASE_DATABASE_CONNECTION_STRING="your_db_connection_string"
     python src/message_classification/manual_test_classifier.py
@@ -78,11 +83,18 @@ if __name__ == "__main__":
     print("⚠️  Make sure environment variables are set before running!")
     print("")
     print("SETUP INSTRUCTIONS:")
+    print("")
+    print("Option 1: Using Doppler (Recommended)")
+    print("1. Install Doppler CLI: https://docs.doppler.com/docs/install-cli")
+    print("2. Configure your Doppler project and secrets")
+    print("3. Run: doppler run -- python src/message_classification/manual_test_classifier.py")
+    print("")
+    print("Option 2: Manual Environment Variables")
     print("1. Get a Groq API key from https://console.groq.com/")
     print("2. Set environment variables:")
     print("   export GROQ_API_KEY='your_api_key_here'")
     print("   export SUPABASE_DATABASE_CONNECTION_STRING='your_db_string'")
-    print("3. Run this test")
+    print("3. Run: python src/message_classification/manual_test_classifier.py")
     print("-" * 50)
     
     success = test_classifier()
@@ -95,4 +107,5 @@ if __name__ == "__main__":
         print("💥 Manual test failed!")
         print("❌ Check your environment variables and database connection")
         print("💡 Make sure you have set GROQ_API_KEY and database connection variables")
+        print("💡 Or use Doppler: doppler run -- python src/message_classification/manual_test_classifier.py")
         exit(1) 

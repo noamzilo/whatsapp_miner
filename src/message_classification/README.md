@@ -47,7 +47,20 @@ The system uses the following database tables:
 
 ### Running the Classifier
 
+#### Option 1: Using Doppler (Recommended)
 ```bash
+# Using the helper script (recommended)
+./src/message_classification/run_with_doppler.sh
+
+# Or directly with doppler run
+doppler run -- python src/message_classification/classify_new_messages.py
+```
+
+#### Option 2: Manual Environment Variables
+```bash
+export GROQ_API_KEY="your_groq_api_key_here"
+export SUPABASE_DATABASE_CONNECTION_STRING="your_db_connection_string"
+export MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS="30"
 python src/message_classification/classify_new_messages.py
 ```
 
@@ -62,6 +75,13 @@ python src/message_classification/manual_test_basic.py
 This test verifies the ClassificationResult Pydantic model works correctly without requiring any environment variables or database connection.
 
 #### Full Classifier Test (Requires Environment Variables)
+
+##### Option 1: Using Doppler (Recommended)
+```bash
+doppler run -- python src/message_classification/manual_test_classifier.py
+```
+
+##### Option 2: Manual Environment Variables
 ```bash
 # First set up environment variables
 export GROQ_API_KEY="your_groq_api_key_here"

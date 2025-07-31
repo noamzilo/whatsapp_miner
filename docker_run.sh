@@ -57,28 +57,15 @@ if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
 	# Ship scripts + compose
 	scp_cmd docker_run_core.sh docker-compose.yml docker_remote_run.sh "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/"
 
-	# Create temp env on remote based on environment
+	# Create temp env on remote - pass ALL environment variables automatically
+	REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
+	
 	if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-		# GitHub Actions: create .env from environment variables
-		REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
-		ssh_cmd "cat > '$REMOTE_ENV'" << EOF
-AWS_EC2_HOST_ADDRESS=$AWS_EC2_HOST_ADDRESS
-AWS_EC2_PEM_CHATBOT_SA_B64=$AWS_EC2_PEM_CHATBOT_SA_B64
-AWS_EC2_REGION=$AWS_EC2_REGION
-AWS_EC2_USERNAME=$AWS_EC2_USERNAME
-AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER=$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER
-AWS_IAM_WHATSAPP_MINER_ACCESS_KEY=$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY
-AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID=$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID
-DOCKER_CONTAINER_NAME_WHATSAPP_MINER=$DOCKER_CONTAINER_NAME_WHATSAPP_MINER
-DOCKER_IMAGE_NAME_WHATSAPP_MINER=$DOCKER_IMAGE_NAME_WHATSAPP_MINER
-GREEN_API_INSTANCE_API_TOKEN=$GREEN_API_INSTANCE_API_TOKEN
-GREEN_API_INSTANCE_ID=$GREEN_API_INSTANCE_ID
-SUPABASE_DATABASE_CONNECTION_STRING=$SUPABASE_DATABASE_CONNECTION_STRING
-SUPABASE_DATABASE_PASSWORD=$SUPABASE_DATABASE_PASSWORD
-EOF
+		# GitHub Actions: export ALL environment variables to remote .env file
+		# No filtering - pass EVERYTHING
+		env | ssh_cmd "cat > '$REMOTE_ENV'"
 	else
-		# Local: use Doppler to create .env
-		REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
+		# Local: use Doppler to create .env with all variables
 		doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
 	fi
 
