@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from datetime import datetime, timezone
 
 # Add project root to path for proper imports
 project_root = Path(__file__).resolve().parent.parent.parent
@@ -25,6 +26,8 @@ from src.db.models.detected_lead import DetectedLead
 from src.db.models.lead_classification_prompt import LeadClassificationPrompt
 from src.db.models.lead_category import LeadCategory
 from src.db.models.message_intent_type import MessageIntentType
+from src.db.models.whatsapp_user import WhatsAppUser
+from src.db.models.whatsapp_group import WhatsAppGroup
 
 
 class TestMessageClassifierIntegration:
@@ -41,7 +44,7 @@ class TestMessageClassifierIntegration:
         )
         
         # Import and create all tables
-        from src.db.models.base import Base
+        from src.db.models import Base
         Base.metadata.create_all(engine)
         
         return engine
@@ -80,6 +83,20 @@ class TestMessageClassifierIntegration:
     @pytest.fixture
     def setup_test_data(self, test_db_session):
         """Set up test data in the database."""
+        # Create test user and group first
+        test_user = WhatsAppUser(
+            whatsapp_id="user123",
+            display_name="Test User"
+        )
+        test_db_session.add(test_user)
+        
+        test_group = WhatsAppGroup(
+            whatsapp_group_id="group456",
+            group_name="Test Group"
+        )
+        test_db_session.add(test_group)
+        test_db_session.commit()
+        
         # Create test prompt
         prompt = LeadClassificationPrompt(
             template_name="lead_classification",
@@ -112,6 +129,8 @@ class TestMessageClassifierIntegration:
         test_db_session.commit()
         
         return {
+            "user": test_user,
+            "group": test_group,
             "prompt": prompt,
             "lead_intent": lead_intent,
             "general_intent": general_intent,
@@ -124,17 +143,17 @@ class TestMessageClassifierIntegration:
         with patch('src.message_classification.message_classifier.ChatGroq') as mock_chat_groq:
             mock_llm = Mock()
             mock_response = Mock()
-            mock_response.content = str(mock_llm_response["lead_message"]).replace("'", '"')
+            mock_response.content = '{"is_lead": true, "lead_category": "dentist", "lead_description": "Looking for a dentist", "confidence_score": 0.9, "reasoning": "Message clearly asks for dentist recommendations"}'
             mock_llm.invoke.return_value = mock_response
             mock_chat_groq.return_value = mock_llm
             
             # Create a test message
             test_message = WhatsAppMessage(
-                id="test_msg_1",
-                sender_id="user123",
-                group_id="group456",
+                message_id="test_msg_1",
+                sender_id=setup_test_data["user"].id,
+                group_id=setup_test_data["group"].id,
                 raw_text="Hi everyone! I'm looking for a good dentist in the area. Any recommendations?",
-                timestamp="2024-01-01T10:00:00Z",
+                timestamp=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
                 llm_processed=False
             )
             test_db_session.add(test_message)
@@ -158,7 +177,7 @@ class TestMessageClassifierIntegration:
                         
                         # Verify classification record was created
                         classification = test_db_session.query(MessageIntentClassification).filter_by(
-                            message_id="test_msg_1"
+                            message_id=test_message.id
                         ).first()
                         assert classification is not None
                         assert classification.confidence_score == 0.9
@@ -168,8 +187,8 @@ class TestMessageClassifierIntegration:
                             classification_id=classification.id
                         ).first()
                         assert lead is not None
-                        assert lead.user_id == "user123"
-                        assert lead.group_id == "group456"
+                        assert lead.user_id == setup_test_data["user"].id
+                        assert lead.group_id == setup_test_data["group"].id
                         assert lead.lead_for == "Looking for a dentist"
 
     def test_end_to_end_non_lead_classification(self, test_db_session, setup_test_data, mock_llm_response):
@@ -178,17 +197,17 @@ class TestMessageClassifierIntegration:
         with patch('src.message_classification.message_classifier.ChatGroq') as mock_chat_groq:
             mock_llm = Mock()
             mock_response = Mock()
-            mock_response.content = str(mock_llm_response["non_lead_message"]).replace("'", '"')
+            mock_response.content = '{"is_lead": false, "lead_category": null, "lead_description": null, "confidence_score": 0.8, "reasoning": "This is just a general conversation message"}'
             mock_llm.invoke.return_value = mock_response
             mock_chat_groq.return_value = mock_llm
             
             # Create a test message
             test_message = WhatsAppMessage(
-                id="test_msg_2",
-                sender_id="user456",
-                group_id="group789",
+                message_id="test_msg_2",
+                sender_id=setup_test_data["user"].id,
+                group_id=setup_test_data["group"].id,
                 raw_text="Just checking in to see how everyone is doing today!",
-                timestamp="2024-01-01T11:00:00Z",
+                timestamp=datetime(2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
                 llm_processed=False
             )
             test_db_session.add(test_message)
@@ -212,11 +231,12 @@ class TestMessageClassifierIntegration:
                         
                         # Verify classification record was created
                         classification = test_db_session.query(MessageIntentClassification).filter_by(
-                            message_id="test_msg_2"
+                            message_id=test_message.id
                         ).first()
                         assert classification is not None
                         assert classification.confidence_score == 0.8
-                        assert classification.lead_category_id is None  # No lead category for non-lead
+                        # For non-lead messages, we use a "general" category instead of NULL
+                        assert classification.lead_category_id is not None
                         
                         # Verify NO lead record was created
                         lead = test_db_session.query(DetectedLead).filter_by(
@@ -262,14 +282,33 @@ class TestMessageClassifierIntegration:
 
     def test_multiple_messages_classification(self, test_db_session, setup_test_data, mock_llm_response):
         """Test classifying multiple messages in one run."""
+        # Create additional users and groups for multiple messages
+        users = []
+        groups = []
+        for i in range(1, 4):
+            user = WhatsAppUser(
+                whatsapp_id=f"user{i}",
+                display_name=f"Test User {i}"
+            )
+            test_db_session.add(user)
+            users.append(user)
+            
+            group = WhatsAppGroup(
+                whatsapp_group_id=f"group{i}",
+                group_name=f"Test Group {i}"
+            )
+            test_db_session.add(group)
+            groups.append(group)
+        test_db_session.commit()
+        
         # Create multiple test messages
         messages = [
             WhatsAppMessage(
-                id=f"test_msg_{i}",
-                sender_id=f"user{i}",
-                group_id="group123",
+                message_id=f"test_msg_{i}",
+                sender_id=users[i-1].id,
+                group_id=groups[i-1].id,
                 raw_text=f"Test message {i}",
-                timestamp=f"2024-01-01T{i:02d}:00:00Z",
+                timestamp=datetime(2024, 1, 1, i, 0, 0, tzinfo=timezone.utc),
                 llm_processed=False
             )
             for i in range(1, 4)
@@ -283,7 +322,7 @@ class TestMessageClassifierIntegration:
         with patch('src.message_classification.message_classifier.ChatGroq') as mock_chat_groq:
             mock_llm = Mock()
             mock_response = Mock()
-            mock_response.content = str(mock_llm_response["lead_message"]).replace("'", '"')
+            mock_response.content = '{"is_lead": true, "lead_category": "dentist", "lead_description": "Looking for a dentist", "confidence_score": 0.9, "reasoning": "Message clearly asks for dentist recommendations"}'
             mock_llm.invoke.return_value = mock_response
             mock_chat_groq.return_value = mock_llm
             

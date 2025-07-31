@@ -231,11 +231,15 @@ Respond with ONLY a valid JSON object matching the structure above."""
     
     def _create_classification_record(self, session: Session, message: WhatsAppMessage, 
                                    classification_result: ClassificationResult) -> MessageIntentClassification:
-        """Create a classification record in the database."""
-        # Get or create lead category if it's a lead
-        lead_category = None
+        """Create a classification record for a message."""
+        # Get or create lead category (for leads) or use general category (for non-leads)
         if classification_result.is_lead and classification_result.lead_category:
-            lead_category = self._get_or_create_lead_category(session, classification_result.lead_category)
+            lead_category = self._get_or_create_lead_category(
+                session, classification_result.lead_category
+            )
+        else:
+            # For non-lead messages, use a general category
+            lead_category = self._get_or_create_lead_category(session, "general")
         
         # Get or create intent type
         intent_type = self._get_or_create_intent_type(
@@ -253,9 +257,9 @@ Respond with ONLY a valid JSON object matching the structure above."""
             message_id=message.id,
             prompt_template_id=prompt.id,
             intent_type_id=intent_type.id,
-            lead_category_id=lead_category.id if lead_category else None,
+            lead_category_id=lead_category.id,
             confidence_score=classification_result.confidence_score,
-            raw_llm_output=classification_result.dict()
+            raw_llm_output=classification_result.model_dump()
         )
         
         session.add(classification)

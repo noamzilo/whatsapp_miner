@@ -119,10 +119,6 @@ class TestMockDatabaseSimple:
         # The mock should support context manager operations
         # This simulates how the real database session would be used
         
-        # Simulate entering and exiting the context
-        mock_db_session.__enter__.return_value = mock_db_session
-        mock_db_session.__exit__.return_value = None
-        
         # Test context manager behavior
         with mock_db_session as session:
             session.add("test_object")

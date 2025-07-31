@@ -72,6 +72,10 @@ def mock_db_session():
         mock_db.commit.return_value = None
         mock_db.refresh.return_value = None
         
+        # Set up context manager properly
+        mock_db.__enter__ = Mock(return_value=mock_db)
+        mock_db.__exit__ = Mock(return_value=None)
+        
         mock_session.return_value.__enter__.return_value = mock_db
         mock_session.return_value.__exit__.return_value = None
         yield mock_db
@@ -100,11 +104,14 @@ def mock_db_with_data():
         # Mock query responses
         def mock_query_response(model_class):
             mock_query = Mock()
-            if model_class.__name__ == "LeadClassificationPrompt":
+            # Handle both string and class inputs
+            model_name = model_class if isinstance(model_class, str) else model_class.__name__
+            
+            if model_name == "LeadClassificationPrompt":
                 mock_query.filter.return_value.first.return_value = mock_prompt
-            elif model_class.__name__ == "MessageIntentType":
+            elif model_name == "MessageIntentType":
                 mock_query.filter.return_value.first.return_value = mock_intent_type
-            elif model_class.__name__ == "LeadCategory":
+            elif model_name == "LeadCategory":
                 mock_query.filter.return_value.first.return_value = mock_category
             else:
                 mock_query.filter.return_value.first.return_value = None
@@ -115,6 +122,10 @@ def mock_db_with_data():
         mock_db.add.return_value = None
         mock_db.commit.return_value = None
         mock_db.refresh.return_value = None
+        
+        # Set up context manager properly
+        mock_db.__enter__ = Mock(return_value=mock_db)
+        mock_db.__exit__ = Mock(return_value=None)
         
         mock_session.return_value.__enter__.return_value = mock_db
         mock_session.return_value.__exit__.return_value = None
