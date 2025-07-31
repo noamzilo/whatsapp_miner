@@ -7,4 +7,7 @@
     <orderEntry type="jdk" jdkName="Remote Python 3.11.13 Docker (354918365739.dkr.ecr.us-east-1.amazonaws.com/whatsapp_miner/miner:latest)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
+  <component name="TestRunnerService">
+    <option name="PROJECT_TEST_RUNNER" value="py.test" />
+  </component>
 </module>

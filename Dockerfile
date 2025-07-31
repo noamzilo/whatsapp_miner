@@ -18,7 +18,7 @@ COPY pyproject.toml poetry.toml README.md ./
 
 # Install deps (no virtualenv, use system)
 RUN poetry config virtualenvs.create false && \
-	poetry install --no-interaction --no-ansi --only main
+	poetry install --no-interaction --no-ansi --with dev
 
 # Copy your source code
 COPY src ./src

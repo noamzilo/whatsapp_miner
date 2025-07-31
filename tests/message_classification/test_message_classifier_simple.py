@@ -11,11 +11,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from typing import Optional
 
-# Add project root to path for proper imports
-project_root = Path(__file__).resolve().parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 from pydantic import BaseModel, Field
 
 
