@@ -40,7 +40,6 @@ class ClassificationResult(BaseModel):
         description="Category of the lead (e.g., 'dentist', 'spanish_classes', 'restaurant', 'plumber', 'electrician', 'tutor', 'restaurant')"
     )
     lead_description: Optional[str] = Field(description="Description of what the person is looking for")
-    confidence_score: float = Field(description="Confidence score between 0 and 1")
     reasoning: str = Field(description="Reasoning for the classification")
 
 
@@ -77,26 +76,33 @@ You MUST use a specific business type name, not a generic term."""
 
 EXISTING CATEGORIES: {categories_text}
 
-RULES:
-1. If someone is seeking a specific business/service, it's a LEAD
-2. If it's just general conversation, it's NOT a lead
-3. For leads, always provide a specific business category
-4. Use existing categories if they match, otherwise create a new specific category
+CRITICAL RULES FOR LEAD DETECTION:
+1. The message MUST show CLEAR INTENT to find a specific service or business
+2. The person must be ACTIVELY SEEKING or ASKING for a service
+3. General statements about businesses are NOT leads (e.g., "There are many smoke shops around here")
+4. Questions asking WHERE to find something ARE leads (e.g., "Where are super cool glasses around here?")
+5. Requests for recommendations ARE leads (e.g., "Can anyone recommend a good dentist?")
+6. General conversation, greetings, or statements are NOT leads
 
-EXAMPLES:
+EXAMPLES OF LEADS (CLEAR INTENT):
+- "Where can I find really cute glasses other than jack's shop? not sunglasses!" → is_lead: true, lead_category: "women_clothes"
 - "Looking for a dentist" → is_lead: true, lead_category: "dentist"
-- "Need a plumber" → is_lead: true, lead_category: "plumber" 
-- "Looking for women's clothes" → is_lead: true, lead_category: "women_clothes"
-- "Need a housekeeper" → is_lead: true, lead_category: "house_cleaner"
+- "Need a plumber urgently" → is_lead: true, lead_category: "plumber"
+- "Can anyone recommend a good restaurant?" → is_lead: true, lead_category: "restaurant"
+- "Looking for a math tutor for my daughter" → is_lead: true, lead_category: "math_tutor"
+
+EXAMPLES OF NOT LEADS (NO CLEAR INTENT):
+- "Centro. Tons of women's clothes." → is_lead: false, lead_category: null
+- "Great weather today!" → is_lead: false, lead_category: null
 - "How is everyone doing?" → is_lead: false, lead_category: null
-- "Great weather today!" → is_lead: false, lead_category: null{retry_emphasis}
+- "I love this group" → is_lead: false, lead_category: null
+- "There's a new store opening" → is_lead: false, lead_category: null{retry_emphasis}
 
 Respond with ONLY this JSON structure:
 {{
     "is_lead": boolean,
     "lead_category": string or null,
     "lead_description": string or null,
-    "confidence_score": float between 0 and 1,
     "reasoning": string
 }}"""
     
@@ -172,7 +178,6 @@ If the current classification is valid, respond with:
                     classification_result.is_lead = False
                     classification_result.lead_category = None
                     classification_result.lead_description = None
-                    classification_result.confidence_score = 0.0
                     classification_result.reasoning = f"Invalid classification: {validation_data.get('reasoning', '')}"
                 
                 return classification_result
@@ -189,7 +194,6 @@ If the current classification is valid, respond with:
                 is_lead=False,
                 lead_category=None,
                 lead_description=None,
-                confidence_score=1.0,
                 reasoning="Message too short (under 8 characters) to be a lead"
             )
         
@@ -230,7 +234,6 @@ Respond with ONLY a valid JSON object matching the structure above."""
                             result.is_lead = False
                             result.lead_category = None
                             result.lead_description = None
-                            result.confidence_score = 0.0
                             result.reasoning = f"Invalid category '{result.lead_category}' - not a valid business type"
                         else:
                             result.lead_category = validated_category
@@ -259,7 +262,6 @@ Respond with ONLY a valid JSON object matching the structure above."""
                                     lead_category = None
                                     data['is_lead'] = False
                                     data['lead_description'] = None
-                                    data['confidence_score'] = 0.0
                                     data['reasoning'] = f"Invalid category '{lead_category}' - not a valid business type"
                                 else:
                                     lead_category = validated_category
@@ -269,7 +271,6 @@ Respond with ONLY a valid JSON object matching the structure above."""
                                 is_lead=data.get('is_lead', False),
                                 lead_category=lead_category,
                                 lead_description=data.get('lead_description'),
-                                confidence_score=data.get('confidence_score', 0.0),
                                 reasoning=data.get('reasoning', 'Parsed from malformed response')
                             )
                         except json.JSONDecodeError:
@@ -294,7 +295,6 @@ Respond with ONLY a valid JSON object matching the structure above."""
                         is_lead=False,
                         lead_category=None,
                         lead_description=None,
-                        confidence_score=0.0,
                         reasoning=f"Error in classification after {max_retries} attempts: {str(e)}"
                     )
                 
@@ -308,7 +308,6 @@ Respond with ONLY a valid JSON object matching the structure above."""
             is_lead=False,
             lead_category=None,
             lead_description=None,
-            confidence_score=0.0,
             reasoning="Failed to classify message after all retries"
         )
     
@@ -388,7 +387,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 if classification_result.is_lead:
                     logger.info(f"   🎯 Category: {classification_result.lead_category}")
                     logger.info(f"   📝 Description: {classification_result.lead_description}")
-                logger.info(f"   🎯 Confidence: {classification_result.confidence_score:.2f}")
+                logger.info(f"   💭 Reasoning: {classification_result.reasoning}")
                 
                 # Prepare result for database operations
                 result = {
@@ -469,7 +468,6 @@ Respond with ONLY a valid JSON object matching the structure above."""
                         prompt_template_id=prompt_template_id,
                         parsed_type_id=intent_type_id,
                         lead_category_id=lead_category_id,
-                        confidence_score=classification_result.confidence_score,
                         raw_llm_output=classification_result.model_dump()
                     )
                     

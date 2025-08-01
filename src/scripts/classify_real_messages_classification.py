@@ -45,7 +45,7 @@ setup_logger(logs_root)
 logger = get_logger(__name__)
 
 
-def read_real_unclassified_messages(db_read_limit: int = 50, result_limit: int = 10) -> List[Dict[str, Any]]:
+def read_real_unclassified_messages(db_read_limit: int = 50, result_limit: int = 20) -> List[Dict[str, Any]]:
     """Read real unclassified messages from production database."""
     
     logger.info(f"📖 Reading up to {db_read_limit} unclassified messages from production database...")
@@ -206,7 +206,7 @@ def print_comprehensive_summary(session, real_message_ids: Dict[int, str]) -> No
             logger.info(f"      Category: {lead['category_name']}")
             logger.info(f"      Real Message ID: {real_message_id or 'Unknown'}")
             logger.info(f"      Description: {lead['lead_for']}")
-            logger.info(f"      Confidence: {lead['confidence_score']:.2f}")
+            logger.info(f"      Reasoning: {lead.get('raw_llm_output', {}).get('reasoning', 'No reasoning provided')}")
             logger.info(f"      Sender: {lead['sender_name']}")
             logger.info(f"      Group: {lead['group_name']}")
             logger.info(f"      Message: '{lead['raw_text'][:100]}...'")
@@ -230,7 +230,7 @@ def main():
     logger.info("=" * 60)
     
     # Read real unclassified messages
-    real_messages = read_real_unclassified_messages(db_read_limit=50, result_limit=10)
+    real_messages = read_real_unclassified_messages(db_read_limit=50, result_limit=20)
     
     if not real_messages:
         logger.warning("⚠️  No unclassified messages found in production database")

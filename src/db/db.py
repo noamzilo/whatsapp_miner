@@ -158,14 +158,13 @@ def mark_message_as_processed(session, message_id: int) -> None:
 
 def create_classification_record(session, message_id: int, prompt_template_id: int,
                                parsed_type_id: int, lead_category_id: int,
-                               confidence_score: float, raw_llm_output: Dict[str, Any]) -> int:
+                               raw_llm_output: Dict[str, Any]) -> int:
     """Create a classification record."""
     classification = MessageIntentClassification(
         message_id=message_id,
         prompt_template_id=prompt_template_id,
         parsed_type_id=parsed_type_id,
         lead_category_id=lead_category_id,
-        confidence_score=confidence_score,
         raw_llm_output=raw_llm_output
     )
     session.add(classification)
@@ -225,29 +224,43 @@ def get_classification_prompt(session, template_name: str = "lead_classification
         # Create default prompt if it doesn't exist
         default_prompt = LeadClassificationPrompt(
             template_name="lead_classification",
-            prompt_text="""You are a classifier for WhatsApp messages from local groups to identify potential business leads.
+                prompt_text="""You are a classifier for WhatsApp messages from local groups to identify potential business leads.
 
 Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
 
 AVAILABLE BUSINESS TYPES: {existing_categories}
 
-CRITICAL RULES:
-1. Use business TYPE names like 'tire_shop', 'hair_salon', 'math_tutor' - not business names like 'Joe's Tires'
-2. If the message matches an existing category above, use that exact name
-3. If not, create a new specific business type name (e.g., 'yoga_instructor', 'pet_sitter', 'car_mechanic')
-4. If the message is NOT seeking any specific business, set is_lead=false and lead_category=null
-5. Always use specific business types that describe the service being sought
+CRITICAL RULES FOR LEAD DETECTION:
+1. The message MUST show CLEAR INTENT to find a specific service or business
+2. The person must be ACTIVELY SEEKING or ASKING for a service
+3. General statements about businesses are NOT leads (e.g., "Centro. Tons of women's clothes.")
+4. Questions asking WHERE to find something ARE leads (e.g., "Where can I find really cute clothes?")
+5. Requests for recommendations ARE leads (e.g., "Can anyone recommend a good dentist?")
+6. General conversation, greetings, or statements are NOT leads
+7. Use business TYPE names like 'tire_shop', 'hair_salon', 'math_tutor' - not business names like 'Joe's Tires'
+8. If the message matches an existing category above, use that exact name
+9. If not, create a new specific business type name (e.g., 'yoga_instructor', 'pet_sitter', 'car_mechanic')
+
+EXAMPLES OF LEADS (CLEAR INTENT):
+- "Where can I find really cute clothes other than the mall? Dresses or 2pc sets?" → is_lead: true, lead_category: "women_clothes"
+- "Looking for a dentist" → is_lead: true, lead_category: "dentist"
+- "Need a plumber urgently" → is_lead: true, lead_category: "plumber"
+- "Can anyone recommend a good restaurant?" → is_lead: true, lead_category: "restaurant"
+
+EXAMPLES OF NOT LEADS (NO CLEAR INTENT):
+- "Centro. Tons of women's clothes." → is_lead: false, lead_category: null
+- "Great weather today!" → is_lead: false, lead_category: null
+- "How is everyone doing?" → is_lead: false, lead_category: null
 
 Analyze the message and respond with a JSON object containing:
 - is_lead: boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise
 - lead_category: string or null - The specific type of business they're looking for (e.g., "dentist", "plumber", "restaurant"). Use null if not a lead
 - lead_description: string or null - A brief description of what they're seeking (e.g., "Looking for a dentist", "Need urgent plumbing help"). Use null if not a lead
-- confidence_score: float between 0 and 1 - Your confidence in this classification (0.0 = very uncertain, 1.0 = very certain)
 - reasoning: string - Brief explanation of why you classified it this way
 
 Message: {message_text}""",
-            version="1.1"
-        )
+                version="1.2"
+            )
         session.add(default_prompt)
         session.flush()
         return default_prompt.id
@@ -398,7 +411,6 @@ def get_detailed_lead_summary(session) -> List[Dict[str, Any]]:
         WhatsAppMessage.raw_text,
         WhatsAppMessage.timestamp.label('message_timestamp'),
         LeadCategory.name.label('category_name'),
-        MessageIntentClassification.confidence_score,
         MessageIntentClassification.raw_llm_output,
         WhatsAppUser.display_name.label('sender_name'),
         WhatsAppGroup.group_name
@@ -432,9 +444,7 @@ def get_processing_summary(session) -> Dict[str, Any]:
     
     # Classification success rate
     total_classifications = session.query(MessageIntentClassification).count()
-    successful_classifications = session.query(MessageIntentClassification).filter(
-        MessageIntentClassification.confidence_score > 0.0
-    ).count()
+    successful_classifications = total_classifications  # All classifications are considered successful now
     
     processing_rate = (processed_messages / total_messages * 100) if total_messages > 0 else 0
     success_rate = (successful_classifications / total_classifications * 100) if total_classifications > 0 else 0
