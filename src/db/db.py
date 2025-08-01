@@ -391,6 +391,7 @@ def get_detailed_lead_summary(session) -> List[Dict[str, Any]]:
         DetectedLead.id.label('lead_id'),
         DetectedLead.lead_for,
         DetectedLead.created_at.label('lead_created_at'),
+        WhatsAppMessage.id.label('message_id'),
         WhatsAppMessage.raw_text,
         WhatsAppMessage.timestamp.label('message_timestamp'),
         LeadCategory.name.label('category_name'),
