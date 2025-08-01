@@ -9,9 +9,27 @@ on:
       - stage
 
 jobs:
+  set-env:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.setenv.outputs.env }}
+    steps:
+      - id: setenv
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "env=prd" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF##*/}" == "dev" ]]; then
+            echo "env=dev" >> $GITHUB_OUTPUT
+          elif [[ "${GITHUB_REF##*/}" == "stage" ]]; then
+            echo "env=stg" >> $GITHUB_OUTPUT
+          else
+            echo "env=dev" >> $GITHUB_OUTPUT  # fallback
+          fi
+
   deploy:
     runs-on: ubuntu-latest
-
+    needs: set-env
+    environment: ${{ needs.set-env.outputs.environment }}
     env:
       AWS_EC2_HOST_ADDRESS: ${{ secrets.AWS_EC2_HOST_ADDRESS }}
       AWS_EC2_PEM_CHATBOT_SA_B64: ${{ secrets.AWS_EC2_PEM_CHATBOT_SA_B64 }}
