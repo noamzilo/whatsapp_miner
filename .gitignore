@@ -7,3 +7,4 @@
 /.doppler_env
 /tests/*:*
 /*:*
+*:memory:*

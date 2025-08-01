@@ -78,19 +78,40 @@ class MessageClassifier:
                 # Create default prompt if it doesn't exist
                 default_prompt = LeadClassificationPrompt(
                     template_name="lead_classification",
-                    prompt_text="""You are a classifier for WhatsApp messages from local groups. Your task is to determine if a message represents someone looking for a local service.
+                    prompt_text="""You are a classifier for WhatsApp messages from local groups to identify potential business leads.
 
-Services can include: dentist, spanish classes, restaurants, tutors, plumbers, electricians, and any other local business or service.
+Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
+
+For lead categories, be specific and actionable. Use precise business types like:
+- dentist
+- spanish_classes  
+- restaurant
+- plumber
+- electrician
+- tutor
+- hair_salon
+- mechanic
+- yoga_studio
+- gym
+- pet_groomer
+- house_cleaner
+- landscaper
+- photographer
+- lawyer
+- accountant
+- real_estate_agent
+
+Avoid generic categories like "local_service" or "business". Instead, identify the specific type of business that would be interested in this lead.
 
 Analyze the message and respond with a JSON object containing:
-- is_lead: boolean indicating if this is a lead
-- lead_category: string describing the category (if it's a lead)
-- lead_description: string describing what they're looking for (if it's a lead)
-- confidence_score: float between 0 and 1
-- reasoning: string explaining your classification
+- is_lead: boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise
+- lead_category: string or null - The specific type of business they're looking for (e.g., "dentist", "plumber", "restaurant"). Use null if not a lead
+- lead_description: string or null - A brief description of what they're seeking (e.g., "Looking for a dentist", "Need urgent plumbing help"). Use null if not a lead
+- confidence_score: float between 0 and 1 - Your confidence in this classification (0.0 = very uncertain, 1.0 = very certain)
+- reasoning: string - Brief explanation of why you classified it this way
 
 Message: {message_text}""",
-                    version="1.0"
+                    version="1.1"
                 )
                 session.add(default_prompt)
                 session.commit()
@@ -106,21 +127,54 @@ Message: {message_text}""",
     
     def _classify_message(self, message_text: str) -> ClassificationResult:
         """Classify a single message using Groq LLM with retry logic and structured output."""
+        # Messages under 8 characters are automatically not leads
+        if len(message_text.strip()) < 8:
+            return ClassificationResult(
+                is_lead=False,
+                lead_category=None,
+                lead_description=None,
+                confidence_score=1.0,
+                reasoning="Message too short (under 8 characters) to be a lead"
+            )
+        
         max_retries = 3
         base_delay = 1
         
         for attempt in range(max_retries):
             try:
                 # Create messages for LangChain with structured output instructions
-                system_message = f"""You are a helpful assistant that classifies WhatsApp messages from local groups.
+                system_message = f"""You are a helpful assistant that classifies WhatsApp messages from local groups to identify potential business leads.
+
+Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
+
+For lead categories, be specific and actionable. Use precise business types like:
+- dentist
+- spanish_classes  
+- restaurant
+- plumber
+- electrician
+- tutor
+- hair_salon
+- mechanic
+- yoga_studio
+- gym
+- pet_groomer
+- house_cleaner
+- landscaper
+- photographer
+- lawyer
+- accountant
+- real_estate_agent
+
+Avoid generic categories like "local_service" or "business". Instead, identify the specific type of business that would be interested in this lead.
 
 IMPORTANT: You must respond with a valid JSON object that matches this exact structure:
 {{
-    "is_lead": boolean,
-    "lead_category": string or null,
-    "lead_description": string or null,
-    "confidence_score": float between 0 and 1,
-    "reasoning": string
+    "is_lead": boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise
+    "lead_category": string or null - The specific type of business they're looking for (e.g., "dentist", "plumber", "restaurant"). Use null if not a lead
+    "lead_description": string or null - A brief description of what they're seeking (e.g., "Looking for a dentist", "Need urgent plumbing help"). Use null if not a lead
+    "confidence_score": float between 0 and 1 - Your confidence in this classification (0.0 = very uncertain, 1.0 = very certain)
+    "reasoning": string - Brief explanation of why you classified it this way
 }}
 
 The JSON must be properly formatted and all fields are required."""
@@ -128,6 +182,8 @@ The JSON must be properly formatted and all fields are required."""
                 human_message = f"""Analyze this WhatsApp message and classify it:
 
 Message: {message_text}
+
+Identify if this person is seeking a specific kind of local business or service. If yes, determine the exact type of business that would be interested in this person as a potential customer (lead).
 
 Respond with ONLY a valid JSON object matching the structure above."""
                 
@@ -142,6 +198,11 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 # Parse the response using Pydantic with error handling
                 try:
                     result = self.output_parser.parse(response.content)
+                    
+                    # Post-process the category name to standardize it
+                    if result.lead_category:
+                        result.lead_category = self._standardize_category_name(result.lead_category)
+                    
                     return result
                 except Exception as parse_error:
                     logger.warning(f"Failed to parse LLM response, attempting to fix JSON: {parse_error}")
@@ -157,10 +218,15 @@ Respond with ONLY a valid JSON object matching the structure above."""
                             json_str = json_match.group(0)
                             data = json.loads(json_str)
                             
+                            # Standardize category name if present
+                            lead_category = data.get('lead_category')
+                            if lead_category:
+                                lead_category = self._standardize_category_name(lead_category)
+                            
                             # Create ClassificationResult from parsed JSON
                             return ClassificationResult(
                                 is_lead=data.get('is_lead', False),
-                                lead_category=data.get('lead_category'),
+                                lead_category=lead_category,
                                 lead_description=data.get('lead_description'),
                                 confidence_score=data.get('confidence_score', 0.0),
                                 reasoning=data.get('reasoning', 'Parsed from malformed response')
@@ -195,7 +261,92 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
                 logger.info(f"Retrying classification in {delay:.2f} seconds (attempt {attempt + 1}/{max_retries})")
                 time.sleep(delay)
+        
+        # This should never be reached, but just in case
+        return ClassificationResult(
+            is_lead=False,
+            lead_category=None,
+            lead_description=None,
+            confidence_score=0.0,
+            reasoning="Failed to classify message after all retries"
+        )
     
+    def _standardize_category_name(self, category_name: str) -> str:
+        """Standardize category name: lowercase, replace spaces with underscores."""
+        if not category_name:
+            return category_name
+        
+        # Convert to lowercase and replace spaces with underscores
+        standardized = category_name.lower().replace(' ', '_')
+        
+        # Remove any special characters except underscores
+        import re
+        standardized = re.sub(r'[^a-z0-9_]', '', standardized)
+        
+        # Remove multiple consecutive underscores
+        standardized = re.sub(r'_+', '_', standardized)
+        
+        # Remove leading/trailing underscores
+        standardized = standardized.strip('_')
+        
+        return standardized
+    
+    def _match_with_existing_categories(self, message_text: str, session: Session) -> Optional[str]:
+        """Try to match the message with existing categories using LLM."""
+        # Get all existing categories
+        existing_categories = session.query(LeadCategory).all()
+        
+        if not existing_categories:
+            return None
+        
+        # Create a list of existing category names
+        category_names = [cat.name for cat in existing_categories]
+        category_list = ", ".join(category_names)
+        
+        try:
+            # Create messages for category matching
+            system_message = f"""You are a helpful assistant that matches WhatsApp messages to existing lead categories.
+
+Available categories: {category_list}
+
+Your task is to determine if the message matches any of the existing categories.
+IMPORTANT: Consider the full context of the original message, not just the classification result.
+The message may contain important details that help determine the best category match.
+
+If it matches, return the exact category name from the list above.
+If it doesn't match any existing category, return "no_match".
+
+Respond with ONLY the category name or "no_match"."""
+            
+            human_message = f"""Original message: {message_text}
+
+Which category does this message match? Consider the full context and meaning of the message.
+Respond with only the category name or "no_match"."""
+            
+            messages = [
+                SystemMessage(content=system_message),
+                HumanMessage(content=human_message)
+            ]
+            
+            # Get response from LLM
+            response = self.llm.invoke(messages)
+            
+            # Parse the response
+            matched_category = response.content.strip().lower()
+            
+            # Check if the matched category exists in our list
+            if matched_category in [cat.name.lower() for cat in existing_categories]:
+                # Find the original case-sensitive category name
+                for cat in existing_categories:
+                    if cat.name.lower() == matched_category:
+                        return cat.name
+            
+            return None
+            
+        except Exception as e:
+            logger.warning(f"Error matching with existing categories: {e}")
+            return None
+
     def _get_or_create_lead_category(self, session: Session, category_name: str) -> LeadCategory:
         """Get or create a lead category."""
         category = session.query(LeadCategory).filter(
@@ -232,11 +383,23 @@ Respond with ONLY a valid JSON object matching the structure above."""
     def _create_classification_record(self, session: Session, message: WhatsAppMessage, 
                                    classification_result: ClassificationResult) -> MessageIntentClassification:
         """Create a classification record for a message."""
-        # Get or create lead category (for leads) or use general category (for non-leads)
+        # For lead messages, try to match with existing categories first
         if classification_result.is_lead and classification_result.lead_category:
-            lead_category = self._get_or_create_lead_category(
-                session, classification_result.lead_category
-            )
+            # Try to match with existing categories using the original message text
+            matched_category = self._match_with_existing_categories(message.raw_text, session)
+            
+            if matched_category:
+                # Use the matched existing category
+                lead_category = session.query(LeadCategory).filter(
+                    LeadCategory.name == matched_category
+                ).first()
+                logger.info(f"✅ Matched message to existing category: {matched_category}")
+            else:
+                # Create new category as before
+                lead_category = self._get_or_create_lead_category(
+                    session, classification_result.lead_category
+                )
+                logger.info(f"✅ Created new category: {classification_result.lead_category}")
         else:
             # For non-lead messages, use a general category
             lead_category = self._get_or_create_lead_category(session, "general")

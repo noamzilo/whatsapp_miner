@@ -81,6 +81,11 @@ def incoming_message_received(body: dict) -> None:
 		)
 		is_forwarded = message_data.get("extendedTextMessageData", {}).get("isForwarded", False)
 
+		# Skip messages under 8 characters
+		if len(message_text.strip()) < 8:
+			print(f"[Skip] Message {message_id} too short (under 8 characters): '{message_text}'")
+			return
+
 		# Skip if already exists
 		if session.query(WhatsAppMessage).filter_by(message_id=message_id).first():
 			print(f"[Skip] Message {message_id} already in DB.")

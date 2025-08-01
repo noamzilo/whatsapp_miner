@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Script to classify a fake message and add it to the real database.
+Script to classify a fake message and add it to the test database.
 
 This script is for manual testing and debugging purposes.
 It takes a fake message, classifies it using the real classifier,
-and adds it to the real database.
+and adds it to a clean test database.
 
 Usage:
     python src/scripts/classify_fake_message.py
@@ -12,12 +12,13 @@ Usage:
 
 import sys
 import os
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
 
 from src.message_classification.message_classifier import MessageClassifier
-from src.db.db import get_db_session
+from src.db.test_db import TestDatabase, TestDataFactory
 from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
@@ -32,36 +33,25 @@ def create_fake_message(
     message_text: str,
     user_id: int = 1,
     group_id: int = 1,
-    message_id: str = "fake_msg_001"
+    message_id: Optional[str] = None
 ) -> WhatsAppMessage:
-    """Create a fake message in the database."""
+    """Create a fake message in the test database."""
+    
+    # Generate unique message ID if not provided
+    if message_id is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        message_id = f"fake_msg_{timestamp}_{unique_id}"
     
     # Create fake user if it doesn't exist
     user = session.query(WhatsAppUser).filter_by(id=user_id).first()
     if not user:
-        user = WhatsAppUser(
-            id=user_id,
-            whatsapp_id=f"fake_user_{user_id}",
-            display_name=f"Fake User {user_id}",
-            created_at=datetime.now(timezone.utc)
-        )
-        session.add(user)
-        session.commit()
+        user = TestDataFactory.create_test_user(session, user_id)
     
     # Create fake group if it doesn't exist
     group = session.query(WhatsAppGroup).filter_by(id=group_id).first()
     if not group:
-        group = WhatsAppGroup(
-            id=group_id,
-            whatsapp_group_id=f"fake_group_{group_id}",
-            group_name=f"Fake Group {group_id}",
-            location_city="Fake City",
-            location_neighbourhood="Fake Neighbourhood",
-            location="Fake Location",
-            created_at=datetime.now(timezone.utc)
-        )
-        session.add(group)
-        session.commit()
+        group = TestDataFactory.create_test_group(session, group_id)
     
     # Create the fake message
     message = WhatsAppMessage(
@@ -81,60 +71,70 @@ def create_fake_message(
 
 
 def classify_fake_message(message_text: str) -> None:
-    """Classify a fake message and add it to the database."""
+    """Classify a fake message and add it to the test database."""
     
     print(f"🔍 Classifying fake message: '{message_text}'")
     
-    with get_db_session() as session:
-        # Create the fake message
-        message = create_fake_message(session, message_text)
-        print(f"✅ Created fake message with ID: {message.id}")
-        
-        # Initialize the classifier
-        classifier = MessageClassifier()
-        print("✅ Initialized MessageClassifier")
-        
-        # Classify the message
-        print("🤖 Running classification...")
-        classification_result = classifier._classify_message(message_text)
-        
-        print(f"📊 Classification result:")
-        print(f"   - Is Lead: {classification_result.is_lead}")
-        print(f"   - Lead Category: {classification_result.lead_category}")
-        print(f"   - Lead Description: {classification_result.lead_description}")
-        print(f"   - Confidence Score: {classification_result.confidence_score}")
-        print(f"   - Reasoning: {classification_result.reasoning}")
-        
-        # Create classification record
-        print("💾 Creating classification record...")
-        classification = classifier._create_classification_record(
-            session, message, classification_result
-        )
-        print(f"✅ Created classification record with ID: {classification.id}")
-        
-        # Create lead record if it's a lead
-        if classification_result.is_lead:
-            print("🎯 Creating lead record...")
-            lead = classifier._create_lead_record(
-                session, message, classification, classification_result
+    # Set up test database
+    test_db = TestDatabase()
+    test_db.setup()
+    
+    try:
+        with test_db.get_session() as session:
+            # Create the fake message
+            message = create_fake_message(session, message_text)
+            print(f"✅ Created fake message with ID: {message.id}")
+            
+            # Initialize the classifier
+            classifier = MessageClassifier()
+            print("✅ Initialized MessageClassifier")
+            
+            # Classify the message
+            print("🤖 Running classification...")
+            classification_result = classifier._classify_message(message_text)
+            
+            print(f"📊 Classification result:")
+            print(f"   - Is Lead: {classification_result.is_lead}")
+            print(f"   - Lead Category: {classification_result.lead_category}")
+            print(f"   - Lead Description: {classification_result.lead_description}")
+            print(f"   - Confidence Score: {classification_result.confidence_score}")
+            print(f"   - Reasoning: {classification_result.reasoning}")
+            
+            # Create classification record
+            print("💾 Creating classification record...")
+            classification = classifier._create_classification_record(
+                session, message, classification_result
             )
-            print(f"✅ Created lead record with ID: {lead.id}")
-        else:
-            print("ℹ️  No lead record created (not a lead)")
-        
-        # Mark message as processed
-        print("✅ Marking message as processed...")
-        classifier._mark_message_as_processed(session, message)
-        
-        print("🎉 Fake message classification completed successfully!")
-        
-        # Print summary
-        print("\n📋 Summary:")
-        print(f"   - Message ID: {message.id}")
-        print(f"   - Classification ID: {classification.id}")
-        if classification_result.is_lead:
-            print(f"   - Lead ID: {lead.id}")
-        print(f"   - Processed: {message.llm_processed}")
+            print(f"✅ Created classification record with ID: {classification.id}")
+            
+            # Create lead record if it's a lead
+            if classification_result.is_lead:
+                print("🎯 Creating lead record...")
+                lead = classifier._create_lead_record(
+                    session, message, classification, classification_result
+                )
+                print(f"✅ Created lead record with ID: {lead.id}")
+            else:
+                print("ℹ️  No lead record created (not a lead)")
+            
+            # Mark message as processed
+            print("✅ Marking message as processed...")
+            classifier._mark_message_as_processed(session, message)
+            
+            print("🎉 Fake message classification completed successfully!")
+            
+            # Print summary
+            print("\n📋 Summary:")
+            print(f"   - Message ID: {message.id}")
+            print(f"   - Classification ID: {classification.id}")
+            if classification_result.is_lead:
+                print(f"   - Lead ID: {lead.id}")
+            print(f"   - Processed: {message.llm_processed}")
+    
+    finally:
+        # Clean up test database
+        test_db.teardown()
+        print("🧹 Test database cleaned up")
 
 
 def main():
@@ -149,8 +149,10 @@ def main():
         "Just checking in to see how everyone is doing!"
     ]
     
-    print("🤖 Fake Message Classification Script")
-    print("=" * 50)
+    print("🤖 Fake Message Classification Script (Test Database)")
+    print("=" * 60)
+    print("📝 Using clean test database - no real data affected!")
+    print("=" * 60)
     
     # Ask user which message to classify
     print("\nAvailable sample messages:")
