@@ -57,8 +57,127 @@ class MessageClassifier:
         # Initialize output parser for structured JSON responses
         self.output_parser = PydanticOutputParser(pydantic_object=ClassificationResult)
         
-    def _classify_message(self, message_text: str) -> ClassificationResult:
-        """Classify a single message using Groq LLM with retry logic and structured output."""
+    def _get_existing_categories(self, session) -> List[str]:
+        """Get all existing category names from database."""
+        from src.db.models.lead_category import LeadCategory
+        categories = session.query(LeadCategory.name).all()
+        return [cat[0] for cat in categories]
+    
+    def _build_dynamic_prompt(self, existing_categories: List[str], is_retry: bool = False) -> str:
+        """Build dynamic prompt with existing categories."""
+        categories_text = ", ".join(existing_categories) if existing_categories else "none"
+        
+        retry_emphasis = ""
+        if is_retry:
+            retry_emphasis = """
+IMPORTANT: This is a retry. The previous classification was too generic.
+You MUST use a specific business type name, not a generic term."""
+        
+        return f"""You are a helpful assistant that classifies WhatsApp messages from local groups to identify potential business leads.
+
+Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
+
+EXISTING BUSINESS TYPES: {categories_text}
+
+CRITICAL RULES:
+1. Use business TYPE names like 'tire_shop', 'hair_salon', 'math_tutor' - not business names like 'Joe's Tires'
+2. If the message matches an existing category above, use that exact name
+3. If not, create a new specific business type name (e.g., 'yoga_instructor', 'pet_sitter', 'car_mechanic')
+4. If the message is NOT seeking any specific business, set is_lead=false and lead_category=null
+5. Always use specific business types, never generic terms like 'general', 'business', 'service'{retry_emphasis}
+
+IMPORTANT: You must respond with a valid JSON object that matches this exact structure:
+{{
+    "is_lead": boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise
+    "lead_category": string or null - The specific type of business they're looking for (e.g., "dentist", "plumber", "restaurant"). Use null if not a lead
+    "lead_description": string or null - A brief description of what they're seeking (e.g., "Looking for a dentist", "Need urgent plumbing help"). Use null if not a lead
+    "confidence_score": float between 0 and 1 - Your confidence in this classification (0.0 = very uncertain, 1.0 = very certain)
+    "reasoning": string - Brief explanation of why you classified it this way
+}}
+
+The JSON must be properly formatted and all fields are required."""
+    
+    def _validate_classification_with_llm(self, original_message: str, classification_result: ClassificationResult, existing_categories: List[str]) -> ClassificationResult:
+        """Use LLM to validate and potentially fix the classification result."""
+        if not classification_result.is_lead or not classification_result.lead_category:
+            return classification_result
+        
+        # Build validation prompt
+        categories_text = ", ".join(existing_categories) if existing_categories else "none"
+        
+        validation_prompt = f"""You are validating a business lead classification. 
+
+Original message: "{original_message}"
+
+Current classification:
+- Category: {classification_result.lead_category}
+- Description: {classification_result.lead_description}
+- Confidence: {classification_result.confidence_score}
+
+Available business types: {categories_text}
+
+TASK: Validate if this classification is correct and specific.
+
+RULES:
+1. The category should be a specific business type (e.g., 'hair_salon', 'math_tutor', 'car_mechanic')
+2. It should NOT be generic (e.g., 'general', 'business', 'service')
+3. If the category is too generic or wrong, suggest a better one
+4. If the category is correct and specific, confirm it
+
+Respond with ONLY a JSON object:
+{{
+    "is_valid": boolean - true if the classification is correct and specific
+    "suggested_category": string or null - better category if current one is generic/wrong, null if current is good
+    "reasoning": string - brief explanation of your validation
+}}
+
+If the current classification is valid, respond with:
+{{
+    "is_valid": true,
+    "suggested_category": null,
+    "reasoning": "Category is specific and appropriate"
+}}"""
+        
+        try:
+            # Get LLM validation
+            messages = [
+                SystemMessage(content=validation_prompt),
+                HumanMessage(content="Validate this classification.")
+            ]
+            
+            response = self.llm.invoke(messages)
+            
+            # Parse validation result
+            import json
+            validation_data = json.loads(response.content)
+            
+            if validation_data.get('is_valid', False):
+                # Classification is valid
+                return classification_result
+            else:
+                # Classification needs fixing
+                suggested_category = validation_data.get('suggested_category')
+                if suggested_category:
+                    logger.info(f"LLM validation: '{classification_result.lead_category}' -> '{suggested_category}'")
+                    classification_result.lead_category = self._standardize_category_name(suggested_category)
+                    classification_result.reasoning += f" (validated and corrected by LLM: {validation_data.get('reasoning', '')})"
+                else:
+                    # No suggestion, mark as not a lead
+                    logger.warning(f"LLM validation: '{classification_result.lead_category}' is invalid but no suggestion provided")
+                    classification_result.is_lead = False
+                    classification_result.lead_category = None
+                    classification_result.lead_description = None
+                    classification_result.confidence_score = 0.0
+                    classification_result.reasoning = f"Invalid classification: {validation_data.get('reasoning', '')}"
+                
+                return classification_result
+                
+        except Exception as e:
+            logger.warning(f"LLM validation failed: {e}, keeping original classification")
+            return classification_result
+    
+    def _attempt_classification(self, message_text: str, existing_categories: List[str], is_retry: bool = False) -> ClassificationResult:
+        """Attempt classification with given parameters."""
         # Messages under 8 characters are automatically not leads
         if len(message_text.strip()) < 8:
             return ClassificationResult(
@@ -74,42 +193,8 @@ class MessageClassifier:
         
         for attempt in range(max_retries):
             try:
-                # Create messages for LangChain with structured output instructions
-                system_message = f"""You are a helpful assistant that classifies WhatsApp messages from local groups to identify potential business leads.
-
-Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
-
-For lead categories, be specific and actionable. Use precise business types like:
-- dentist
-- spanish_classes  
-- restaurant
-- plumber
-- electrician
-- tutor
-- hair_salon
-- mechanic
-- yoga_studio
-- gym
-- pet_groomer
-- house_cleaner
-- landscaper
-- photographer
-- lawyer
-- accountant
-- real_estate_agent
-
-Avoid generic categories like "local_service" or "business". Instead, identify the specific type of business that would be interested in this lead.
-
-IMPORTANT: You must respond with a valid JSON object that matches this exact structure:
-{{
-    "is_lead": boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise
-    "lead_category": string or null - The specific type of business they're looking for (e.g., "dentist", "plumber", "restaurant"). Use null if not a lead
-    "lead_description": string or null - A brief description of what they're seeking (e.g., "Looking for a dentist", "Need urgent plumbing help"). Use null if not a lead
-    "confidence_score": float between 0 and 1 - Your confidence in this classification (0.0 = very uncertain, 1.0 = very certain)
-    "reasoning": string - Brief explanation of why you classified it this way
-}}
-
-The JSON must be properly formatted and all fields are required."""
+                # Build dynamic prompt
+                system_message = self._build_dynamic_prompt(existing_categories, is_retry)
                 
                 human_message = f"""Analyze this WhatsApp message and classify it:
 
@@ -131,9 +216,19 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 try:
                     result = self.output_parser.parse(response.content)
                     
-                    # Post-process the category name to standardize it
+                    # Validate and standardize the category name
                     if result.lead_category:
-                        result.lead_category = self._standardize_category_name(result.lead_category)
+                        validated_category = self._validate_category(result.lead_category)
+                        if validated_category is None:
+                            # Invalid category - treat as not a lead
+                            logger.warning(f"Invalid category '{result.lead_category}' detected, treating as not a lead")
+                            result.is_lead = False
+                            result.lead_category = None
+                            result.lead_description = None
+                            result.confidence_score = 0.0
+                            result.reasoning = f"Invalid category '{result.lead_category}' - not a valid business type"
+                        else:
+                            result.lead_category = validated_category
                     
                     return result
                 except Exception as parse_error:
@@ -150,10 +245,19 @@ Respond with ONLY a valid JSON object matching the structure above."""
                             json_str = json_match.group(0)
                             data = json.loads(json_str)
                             
-                            # Standardize category name if present
+                            # Validate and standardize category name if present
                             lead_category = data.get('lead_category')
                             if lead_category:
-                                lead_category = self._standardize_category_name(lead_category)
+                                validated_category = self._validate_category(lead_category)
+                                if validated_category is None:
+                                    # Invalid category - treat as not a lead
+                                    lead_category = None
+                                    data['is_lead'] = False
+                                    data['lead_description'] = None
+                                    data['confidence_score'] = 0.0
+                                    data['reasoning'] = f"Invalid category '{lead_category}' - not a valid business type"
+                                else:
+                                    lead_category = validated_category
                             
                             # Create ClassificationResult from parsed JSON
                             return ClassificationResult(
@@ -203,6 +307,39 @@ Respond with ONLY a valid JSON object matching the structure above."""
             reasoning="Failed to classify message after all retries"
         )
     
+    def _classify_message(self, message_text: str, session=None) -> ClassificationResult:
+        """Classify a single message using Groq LLM with database-aware validation."""
+        # Get existing categories from database if session provided
+        existing_categories = []
+        if session:
+            existing_categories = self._get_existing_categories(session)
+        
+        # First classification attempt
+        result = self._attempt_classification(message_text, existing_categories, is_retry=False)
+        
+        # Validate classification with LLM
+        if result.is_lead and result.lead_category:
+            result = self._validate_classification_with_llm(message_text, result, existing_categories)
+        
+        return result
+    
+    def _validate_category(self, category_name: str) -> Optional[str]:
+        """Validate and standardize category name. Returns None if invalid."""
+        if not category_name:
+            return None
+        
+        # Standardize the category name
+        standardized = self._standardize_category_name(category_name)
+        
+        # Basic validation - reject obviously generic terms
+        generic_terms = {'general', 'business', 'service', 'local', 'any', 'other'}
+        if standardized.lower() in generic_terms:
+            logger.warning(f"Generic category '{category_name}' (standardized to '{standardized}') - not a valid business type")
+            return None
+        
+        # All other categories are valid (allow new business types)
+        return standardized
+    
     def _standardize_category_name(self, category_name: str) -> str:
         """Standardize category name: lowercase, replace spaces with underscores."""
         if not category_name:
@@ -223,7 +360,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
         
         return standardized
     
-    def classify_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def classify_messages(self, messages: List[Dict[str, Any]], session=None) -> List[Dict[str, Any]]:
         """Classify a list of messages and return results with database operations to be performed."""
         logger.info(f"🔍 Starting classification of {len(messages)} messages")
         
@@ -236,8 +373,8 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 
                 logger.info(f"🔍 Classifying message {i}/{len(messages)}: '{message_text[:50]}...'")
                 
-                # Classify the message
-                classification_result = self._classify_message(message_text)
+                # Classify the message with session for database-aware validation
+                classification_result = self._classify_message(message_text, session)
                 
                 logger.info(f"   📊 Result: {'LEAD' if classification_result.is_lead else 'NOT LEAD'}")
                 if classification_result.is_lead:

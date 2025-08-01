@@ -83,8 +83,8 @@ def classify_messages(messages: List[WhatsAppMessage], session) -> None:
         for msg in messages
     ]
     
-    # Classify messages
-    classification_results = classifier.classify_messages(message_data)
+    # Classify messages with session for database-aware validation
+    classification_results = classifier.classify_messages(message_data, session)
     
     # Process results and update database
     for result in classification_results:

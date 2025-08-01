@@ -226,26 +226,14 @@ def get_classification_prompt(session, template_name: str = "lead_classification
 
 Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
 
-For lead categories, be specific and actionable. Use precise business types like:
-- dentist
-- spanish_classes  
-- restaurant
-- plumber
-- electrician
-- tutor
-- hair_salon
-- mechanic
-- yoga_studio
-- gym
-- pet_groomer
-- house_cleaner
-- landscaper
-- photographer
-- lawyer
-- accountant
-- real_estate_agent
+AVAILABLE BUSINESS TYPES: {existing_categories}
 
-Avoid generic categories like "local_service" or "business". Instead, identify the specific type of business that would be interested in this lead.
+CRITICAL RULES:
+1. Use business TYPE names like 'tire_shop', 'hair_salon', 'math_tutor' - not business names like 'Joe's Tires'
+2. If the message matches an existing category above, use that exact name
+3. If not, create a new specific business type name (e.g., 'yoga_instructor', 'pet_sitter', 'car_mechanic')
+4. If the message is NOT seeking any specific business, set is_lead=false and lead_category=null
+5. Always use specific business types that describe the service being sought
 
 Analyze the message and respond with a JSON object containing:
 - is_lead: boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise

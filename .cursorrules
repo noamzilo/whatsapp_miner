@@ -93,6 +93,8 @@ We already have the project root defined. Use relative imports instead like so f
 - If the same code is used in multiple places, extract it to a common place and import it.
 - Prefer classes over files full of functions, and import and use them from entrypoint scripts.
 
+## 8. Running Code
+- When running code, don't inject PYTHONPATH. it's already set via bashrc or docker.
 
 # Code Example Requirements
 

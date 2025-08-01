@@ -37,7 +37,7 @@ class TestClassifierLogic:
         mock_llm.invoke.return_value = mock_response
         
         # Test classification
-        result = classifier._classify_message("Looking for a good dentist in the area")
+        result = classifier._classify_message("Looking for a good dentist in the area", mock_db_session)
         
         # Verify the result
         assert result.is_lead is True
@@ -73,7 +73,7 @@ class TestClassifierLogic:
         mock_llm.invoke.return_value = mock_response
         
         # Test classification
-        result = classifier._classify_message("Hi everyone! How are you all doing today?")
+        result = classifier._classify_message("Hi everyone! How are you all doing today?", mock_db_session)
         
         # Verify the result
         assert result.is_lead is False
@@ -156,7 +156,7 @@ class TestClassifierLogic:
         mock_llm.invoke.return_value = mock_response
         
         # Test classification - should handle the error gracefully
-        result = classifier._classify_message("Test message")
+        result = classifier._classify_message("Test message", mock_db_session)
         
         # Should return a default result
         assert result.is_lead is False
@@ -189,7 +189,7 @@ class TestClassifierLogic:
         ]
         
         # Test classification - should retry and eventually succeed
-        result = classifier._classify_message("Looking for a dentist")
+        result = classifier._classify_message("Looking for a dentist", mock_db_session)
         
         # Verify the result
         assert result.is_lead is True
@@ -221,7 +221,7 @@ class TestClassifierLogic:
         }'''
         mock_llm.invoke.return_value = mock_response_high
         
-        result_high = classifier._classify_message("Looking for a dentist")
+        result_high = classifier._classify_message("Looking for a dentist", mock_db_session)
         assert result_high.confidence_score == 0.95
         
         # Test low confidence
@@ -235,5 +235,76 @@ class TestClassifierLogic:
         }'''
         mock_llm.invoke.return_value = mock_response_low
         
-        result_low = classifier._classify_message("Looking for a dentist")
-        assert result_low.confidence_score == 0.6 
+        result_low = classifier._classify_message("Looking for a dentist", mock_db_session)
+        assert result_low.confidence_score == 0.6
+    
+    @pytest.mark.slow
+    def test_generic_category_detection(self, mock_llm, mock_db_session):
+        """Test that generic categories are detected and retried."""
+        from src.message_classification.message_classifier import MessageClassifier
+        
+        # Mock the prompt query
+        mock_prompt = Mock()
+        mock_prompt.prompt_text = "Test classification prompt"
+        mock_db_session.query.return_value.filter.return_value.first.return_value = mock_prompt
+        
+        classifier = MessageClassifier()
+        
+        # Mock first response with generic category
+        mock_response1 = Mock()
+        mock_response1.content = '''{
+            "is_lead": true,
+            "lead_category": "general",
+            "lead_description": "Looking for a hair salon",
+            "confidence_score": 0.9,
+            "reasoning": "Asking for hair salon"
+        }'''
+        
+        # Mock second response with specific category
+        mock_response2 = Mock()
+        mock_response2.content = '''{
+            "is_lead": true,
+            "lead_category": "hair_salon",
+            "lead_description": "Looking for a hair salon",
+            "confidence_score": 0.9,
+            "reasoning": "Asking for hair salon"
+        }'''
+        
+        # Set up mock to return different responses
+        mock_llm.invoke.side_effect = [mock_response1, mock_response2]
+        
+        result = classifier._classify_message("Anyone know a good hair salon?", mock_db_session)
+        
+        # Should have called LLM twice (retry)
+        assert mock_llm.invoke.call_count == 2
+        assert result.is_lead is True
+        assert result.lead_category == "hair_salon"
+    
+    @pytest.mark.slow
+    def test_database_categories_integration(self, mock_llm, mock_db_session):
+        """Test that existing database categories are used in classification."""
+        from src.message_classification.message_classifier import MessageClassifier
+        
+        # Mock existing categories in database
+        mock_categories = [("dentist",), ("hair_salon",), ("plumber",)]
+        mock_db_session.query.return_value.all.return_value = mock_categories
+        
+        classifier = MessageClassifier()
+        
+        # Mock LLM response
+        mock_response = Mock()
+        mock_response.content = '''{
+            "is_lead": true,
+            "lead_category": "dentist",
+            "lead_description": "Looking for a dentist",
+            "confidence_score": 0.9,
+            "reasoning": "Asking for dentist"
+        }'''
+        mock_llm.invoke.return_value = mock_response
+        
+        result = classifier._classify_message("Looking for a good dentist", mock_db_session)
+        
+        # Verify database was queried for categories
+        mock_db_session.query.assert_called()
+        assert result.is_lead is True
+        assert result.lead_category == "dentist" 
