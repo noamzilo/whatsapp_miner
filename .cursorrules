@@ -81,6 +81,18 @@
 - **Versioning:** Plan for API versioning from the start (e.g., using URL prefixes or headers).
 - **CORS:** Configure Cross-Origin Resource Sharing (CORS) settings correctly.
 
+## 7. Avoid redundancy
+- Do not put the file into the python path
+The following is BAD:
+# Add project root to path for proper imports
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+We already have the project root defined. Use relative imports instead like so from src.env_var_injection import message_classifier_run_every_seconds, groq_api_key
+- If the same code is used in multiple places, extract it to a common place and import it.
+- Prefer classes over files full of functions, and import and use them from entrypoint scripts.
+
+
 # Code Example Requirements
 
 - All functions must include type annotations.

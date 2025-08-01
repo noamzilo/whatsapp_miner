@@ -11,7 +11,7 @@ class MessageIntentClassification(Base):
 	id = Column(Integer, primary_key=True)
 	message_id = Column(Integer, ForeignKey("whatsapp_messages.id"), nullable=False)
 	prompt_template_id = Column(Integer, ForeignKey("lead_classification_prompts.id"), nullable=False)
-	intent_type_id = Column(Integer, ForeignKey("message_intent_types.id"), nullable=False)
+	parsed_type_id = Column(Integer, ForeignKey("message_intent_types.id"), nullable=False)  # This is the actual column name in DB
 	lead_category_id = Column(Integer, ForeignKey("lead_categories.id"), nullable=False)
 	confidence_score = Column(Float)
 	raw_llm_output = Column(JSON)

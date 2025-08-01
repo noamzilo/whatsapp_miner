@@ -5,3 +5,4 @@
 /.env.doppler
 /logs
 /.doppler_env
+/tests/*:*

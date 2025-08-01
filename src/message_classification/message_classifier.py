@@ -256,7 +256,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
         classification = MessageIntentClassification(
             message_id=message.id,
             prompt_template_id=prompt.id,
-            intent_type_id=intent_type.id,
+            parsed_type_id=intent_type.id,  # Use the correct column name
             lead_category_id=lead_category.id,
             confidence_score=classification_result.confidence_score,
             raw_llm_output=classification_result.model_dump()
