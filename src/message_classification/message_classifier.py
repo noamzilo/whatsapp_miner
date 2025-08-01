@@ -73,29 +73,32 @@ class MessageClassifier:
 IMPORTANT: This is a retry. The previous classification was too generic.
 You MUST use a specific business type name, not a generic term."""
         
-        return f"""You are a helpful assistant that classifies WhatsApp messages from local groups to identify potential business leads.
+        return f"""Classify this WhatsApp message as either a business lead or not a lead.
 
-Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
+EXISTING CATEGORIES: {categories_text}
 
-EXISTING BUSINESS TYPES: {categories_text}
+RULES:
+1. If someone is seeking a specific business/service, it's a LEAD
+2. If it's just general conversation, it's NOT a lead
+3. For leads, always provide a specific business category
+4. Use existing categories if they match, otherwise create a new specific category
 
-CRITICAL RULES:
-1. Use business TYPE names like 'tire_shop', 'hair_salon', 'math_tutor' - not business names like 'Joe's Tires'
-2. If the message matches an existing category above, use that exact name
-3. If not, create a new specific business type name (e.g., 'yoga_instructor', 'pet_sitter', 'car_mechanic')
-4. If the message is NOT seeking any specific business, set is_lead=false and lead_category=null
-5. Always use specific business types, never generic terms like 'general', 'business', 'service'{retry_emphasis}
+EXAMPLES:
+- "Looking for a dentist" → is_lead: true, lead_category: "dentist"
+- "Need a plumber" → is_lead: true, lead_category: "plumber" 
+- "Looking for women's clothes" → is_lead: true, lead_category: "women_clothes"
+- "Need a housekeeper" → is_lead: true, lead_category: "house_cleaner"
+- "How is everyone doing?" → is_lead: false, lead_category: null
+- "Great weather today!" → is_lead: false, lead_category: null{retry_emphasis}
 
-IMPORTANT: You must respond with a valid JSON object that matches this exact structure:
+Respond with ONLY this JSON structure:
 {{
-    "is_lead": boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise
-    "lead_category": string or null - The specific type of business they're looking for (e.g., "dentist", "plumber", "restaurant"). Use null if not a lead
-    "lead_description": string or null - A brief description of what they're seeking (e.g., "Looking for a dentist", "Need urgent plumbing help"). Use null if not a lead
-    "confidence_score": float between 0 and 1 - Your confidence in this classification (0.0 = very uncertain, 1.0 = very certain)
-    "reasoning": string - Brief explanation of why you classified it this way
-}}
-
-The JSON must be properly formatted and all fields are required."""
+    "is_lead": boolean,
+    "lead_category": string or null,
+    "lead_description": string or null,
+    "confidence_score": float between 0 and 1,
+    "reasoning": string
+}}"""
     
     def _validate_classification_with_llm(self, original_message: str, classification_result: ClassificationResult, existing_categories: List[str]) -> ClassificationResult:
         """Use LLM to validate and potentially fix the classification result."""
@@ -119,10 +122,12 @@ Available business types: {categories_text}
 TASK: Validate if this classification is correct and specific.
 
 RULES:
-1. The category should be a specific business type (e.g., 'hair_salon', 'math_tutor', 'car_mechanic')
-2. It should NOT be generic (e.g., 'general', 'business', 'service')
+1. The category should be a specific business type (e.g., 'hair_salon', 'math_tutor', 'car_mechanic', 'women_clothes', 'house_cleaner')
+2. It should NOT be generic (e.g., 'general', 'business', 'service', 'store', 'shop')
 3. If the category is too generic or wrong, suggest a better one
 4. If the category is correct and specific, confirm it
+5. For clothing requests, prefer 'women_clothes', 'clothing_store', 'fashion_boutique'
+6. For cleaning requests, prefer 'house_cleaner', 'cleaning_service', 'maid_service'
 
 Respond with ONLY a JSON object:
 {{
@@ -317,9 +322,14 @@ Respond with ONLY a valid JSON object matching the structure above."""
         # First classification attempt
         result = self._attempt_classification(message_text, existing_categories, is_retry=False)
         
-        # Validate classification with LLM
-        if result.is_lead and result.lead_category:
-            result = self._validate_classification_with_llm(message_text, result, existing_categories)
+        # If it's a lead but no specific category, try again with retry emphasis
+        if result.is_lead and not result.lead_category:
+            logger.info(f"🔄 Lead detected but no category provided, retrying with emphasis...")
+            result = self._attempt_classification(message_text, existing_categories, is_retry=True)
+        
+        # Skip LLM validation for now to avoid "general" bias
+        # if result.is_lead and result.lead_category:
+        #     result = self._validate_classification_with_llm(message_text, result, existing_categories)
         
         return result
     
@@ -331,13 +341,11 @@ Respond with ONLY a valid JSON object matching the structure above."""
         # Standardize the category name
         standardized = self._standardize_category_name(category_name)
         
-        # Basic validation - reject obviously generic terms
-        generic_terms = {'general', 'business', 'service', 'local', 'any', 'other'}
-        if standardized.lower() in generic_terms:
-            logger.warning(f"Generic category '{category_name}' (standardized to '{standardized}') - not a valid business type")
+        # Only reject if it's clearly too short
+        if len(standardized) < 3:
+            logger.warning(f"Category too short '{category_name}' (standardized to '{standardized}')")
             return None
         
-        # All other categories are valid (allow new business types)
         return standardized
     
     def _standardize_category_name(self, category_name: str) -> str:
@@ -405,6 +413,92 @@ Respond with ONLY a valid JSON object matching the structure above."""
         
         logger.info(f"✅ Completed classification of {len(messages)} messages")
         return results
+    
+    def process_classification_results(self, classification_results: List[Dict[str, Any]], session) -> int:
+        """Process classification results and update database. Returns number of processed messages."""
+        from src.db.db import (
+            mark_message_as_processed, create_classification_record,
+            create_lead_record, get_or_create_lead_category, get_or_create_intent_type,
+            get_classification_prompt, match_with_existing_categories
+        )
+        
+        processed_count = 0
+        
+        for result in classification_results:
+            if not result['success']:
+                logger.error(f"❌ Failed to classify message {result['message_id']}: {result.get('error', 'Unknown error')}")
+                continue
+                
+            message_id = result['message_id']
+            classification_result = result['classification_result']
+            
+            try:
+                # Get or create intent type
+                intent_name = "lead_seeking" if classification_result.is_lead else "general_message"
+                intent_type_id = get_or_create_intent_type(session, intent_name)
+                
+                # Get classification prompt
+                prompt_template_id = get_classification_prompt(session)
+                
+                # Handle lead category - ONLY for leads
+                lead_category_id = None
+                if classification_result.is_lead:
+                    if classification_result.lead_category:
+                        # Try to match with existing categories first
+                        matched_category = match_with_existing_categories(session, classification_result.lead_category)
+                        
+                        if matched_category:
+                            # Use the matched existing category
+                            lead_category_id = get_or_create_lead_category(session, matched_category)
+                            logger.debug(f"✅ Matched message to existing category: {matched_category}")
+                        else:
+                            # Create new category
+                            lead_category_id = get_or_create_lead_category(session, classification_result.lead_category)
+                            logger.info(f"✅ Created new category: {classification_result.lead_category}")
+                    else:
+                        # Lead but no category - skip this lead for now
+                        logger.warning(f"⚠️  Lead detected but no category specified, skipping message {message_id}")
+                        continue
+                
+                # Only create classification record for leads
+                if classification_result.is_lead:
+                    # Create classification record for leads
+                    classification_id = create_classification_record(
+                        session=session,
+                        message_id=message_id,
+                        prompt_template_id=prompt_template_id,
+                        parsed_type_id=intent_type_id,
+                        lead_category_id=lead_category_id,
+                        confidence_score=classification_result.confidence_score,
+                        raw_llm_output=classification_result.model_dump()
+                    )
+                    
+                    # Create lead record
+                    from src.db.models.whatsapp_message import WhatsAppMessage
+                    message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
+                    lead_id = create_lead_record(
+                        session=session,
+                        classification_id=classification_id,
+                        user_id=message.sender_id,
+                        group_id=message.group_id,
+                        lead_for=classification_result.lead_description or "Lead detected"
+                    )
+                    logger.info(f"🎯 Created lead record (ID: {lead_id}) for message {message_id}")
+                else:
+                    # For non-leads, just mark as processed without creating classification record
+                    logger.debug(f"📝 Non-lead message {message_id} - marking as processed without classification record")
+                
+                # Mark message as processed
+                mark_message_as_processed(session, message_id)
+                
+                processed_count += 1
+                logger.debug(f"✅ Successfully processed message {message_id}")
+                
+            except Exception as e:
+                logger.error(f"❌ Error processing message {message_id}: {e}")
+                continue
+        
+        return processed_count
     
     def run_continuous(self):
         """Run the classifier in a continuous loop."""

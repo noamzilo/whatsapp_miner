@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Script to classify fake messages and add them to the test database.
+Script to test reading real messages from production database and classifying them.
 
-This script is for manual testing and debugging purposes.
-It takes multiple fake messages, classifies them using the real classifier,
-and adds them to a clean test database, then provides a comprehensive summary.
+This script reads 10 unclassified real messages from the production database,
+classifies them using the real classifier, but writes results to the fake database
+to keep the production database intact.
 
 Usage:
-    python src/scripts/classify_fake_message.py
+    python src/scripts/test_real_messages_classification.py
 """
 
 import sys
@@ -15,7 +15,7 @@ import os
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 from src.message_classification.message_classifier import MessageClassifier
 from src.db.test_db import TestDatabase, TestDataFactory
@@ -33,6 +33,7 @@ from src.db.db import (
     get_or_create_lead_category, get_or_create_intent_type, get_classification_prompt,
     match_with_existing_categories
 )
+from src.db.db_interface import get_db_session
 from src.utils.log import get_logger, setup_logger
 from src.paths import logs_root
 
@@ -41,67 +42,77 @@ setup_logger(logs_root)
 logger = get_logger(__name__)
 
 
-def create_all_sample_messages(session) -> List[WhatsAppMessage]:
-    """Create all sample messages in the database."""
+def read_real_unclassified_messages(db_read_limit: int = 50, result_limit: int = 10) -> List[Dict[str, Any]]:
+    """Read real unclassified messages from production database."""
     
-    # Sample messages with expected categories
-    sample_messages_with_expected = [
-        # Original test messages
-        ("Hi everyone! I'm looking for a good dentist in the area. Any recommendations?", "dentist"),
-        ("Need a plumber urgently, any recommendations?", "plumber"),
-        ("Can anyone recommend a good restaurant for dinner tonight?", "restaurant"),
-        ("Hi everyone! How are you all doing today?", None),  # Not a lead
-        ("Just checking in to see how everyone is doing!", None),  # Not a lead
-        ("Looking for a reliable electrician for some home repairs", "electrician"),
-        ("Anyone know a good hair salon in the neighborhood?", "hair_salon"),
-        ("Need a tutor for my kids' math homework", "math_tutor"),
-        ("Great weather today! Hope everyone is having a good day", None),  # Not a lead
-        ("Does anyone have recommendations for a good mechanic?", "mechanic"),
-        
-        # Additional messages with same categories (to test consistency)
-        ("Looking for a dentist who takes my insurance", "dentist"),
-        ("Need a plumber for a leaky faucet", "plumber"),
-        ("Best restaurant for a date night?", "restaurant"),
-        ("Electrician needed for new outlet installation", "electrician"),
-        ("Recommendations for hair salon that does highlights?", "hair_salon"),
-        ("Math tutor for high school algebra", "math_tutor"),
-        ("Car mechanic for oil change and inspection", "mechanic"),
-        
-        # New categories to test
-        ("Looking for a yoga instructor", "yoga_instructor"),
-        ("Need a house cleaner for weekly cleaning", "house_cleaner"),
-        ("Photographer for family portraits", "photographer"),
-        ("Lawyer for traffic ticket", "lawyer"),
-        ("Accountant for tax preparation", "accountant"),
-        ("Real estate agent to sell my house", "real_estate_agent"),
-        ("Pet groomer for my dog", "pet_groomer"),
-        ("Landscaper for garden design", "landscaper"),
-        ("Gym with personal trainer", "gym"),
-        ("Spanish classes for beginners", "spanish_classes")
-    ]
+    logger.info(f"📖 Reading up to {db_read_limit} unclassified messages from production database...")
     
     messages = []
-    for i, (message_text, expected_category) in enumerate(sample_messages_with_expected, 1):
-        message_id = create_fake_message_with_dependencies(session, message_text, user_id=i, group_id=1)
-        message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
-        
-        # Store expected category in message metadata (we'll use the description field temporarily)
-        if expected_category:
-            message.raw_text += f" [EXPECTED: {expected_category}]"
-        
-        messages.append(message)
-        logger.info(f"✅ Created message {i}: '{message_text[:50]}...' (Expected: {expected_category})")
+    try:
+        with get_db_session() as session:
+            # Get unclassified messages from real database
+            unclassified_messages = session.query(WhatsAppMessage).filter(
+                WhatsAppMessage.llm_processed == False
+            ).limit(db_read_limit).all()
+            
+            logger.info(f"✅ Found {len(unclassified_messages)} unclassified messages in production database")
+            
+            # Convert to dictionary format for classifier and filter short messages
+            for msg in unclassified_messages:
+                # Skip messages under 8 characters
+                if len(msg.raw_text.strip()) < 8:
+                    logger.info(f"   ⏭️  Skipping short message {msg.id}: '{msg.raw_text[:20]}...' (length: {len(msg.raw_text)})")
+                    continue
+                
+                messages.append({
+                    'id': msg.id,
+                    'raw_text': msg.raw_text,
+                    'sender_id': msg.sender_id,
+                    'group_id': msg.group_id,
+                    'timestamp': msg.timestamp,
+                    'real_message_id': msg.id  # Keep track of real message ID
+                })
+                
+                logger.info(f"   📝 Message {msg.id}: '{msg.raw_text[:50]}...' (length: {len(msg.raw_text)})")
     
-    return messages
+    except Exception as e:
+        logger.error(f"❌ Error reading from production database: {e}")
+        return []
     
-    messages = []
-    for i, message_text in enumerate(sample_messages, 1):
-        message_id = create_fake_message_with_dependencies(session, message_text, user_id=i, group_id=1)
-        message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
-        messages.append(message)
-        logger.info(f"✅ Created message {i}: '{message_text[:50]}...'")
+    logger.info(f"✅ After filtering, processing {len(messages)} messages")
+    return messages[:result_limit]
+
+
+def create_fake_messages_from_real_data(real_messages: List[Dict[str, Any]], test_session) -> List[WhatsAppMessage]:
+    """Create fake messages in test database based on real message data."""
     
-    return messages
+    logger.info("🔄 Creating fake messages in test database from real data...")
+    
+    fake_messages = []
+    for i, real_msg in enumerate(real_messages, 1):
+        try:
+            # Create fake message with same content but new IDs
+            message_id = create_fake_message_with_dependencies(
+                session=test_session,
+                message_text=real_msg['raw_text'],
+                user_id=real_msg['sender_id'],
+                group_id=real_msg['group_id']
+            )
+            
+            # Get the created message
+            fake_message = test_session.query(WhatsAppMessage).filter_by(id=message_id).first()
+            
+            # Store real message ID in metadata for reference
+            fake_message.raw_text += f" [REAL_ID: {real_msg['real_message_id']}]"
+            
+            fake_messages.append(fake_message)
+            logger.info(f"   ✅ Created fake message {i}: '{real_msg['raw_text'][:50]}...' (Real ID: {real_msg['real_message_id']})")
+            
+        except Exception as e:
+            logger.error(f"   ❌ Error creating fake message {i}: {e}")
+            continue
+    
+    return fake_messages
 
 
 def classify_messages(messages: List[WhatsAppMessage], session) -> Dict[int, str]:
@@ -115,41 +126,41 @@ def classify_messages(messages: List[WhatsAppMessage], session) -> Dict[int, str
     
     # Prepare message data for classification
     message_data = []
-    expected_categories = {}
+    real_message_ids = {}
     
     for msg in messages:
-        # Extract expected category from message text if present
-        expected_category = None
+        # Extract real message ID from message text if present
+        real_message_id = None
         clean_text = msg.raw_text
         
-        if "[EXPECTED:" in msg.raw_text:
-            # Extract expected category and clean the text
+        if "[REAL_ID:" in msg.raw_text:
+            # Extract real message ID and clean the text
             import re
-            match = re.search(r'\[EXPECTED: (\w+)\]', msg.raw_text)
+            match = re.search(r'\[REAL_ID: (\d+)\]', msg.raw_text)
             if match:
-                expected_category = match.group(1)
-                clean_text = re.sub(r'\[EXPECTED: \w+\]', '', msg.raw_text).strip()
+                real_message_id = int(match.group(1))
+                clean_text = re.sub(r'\[REAL_ID: \d+\]', '', msg.raw_text).strip()
         
         message_data.append({'id': msg.id, 'raw_text': clean_text})
-        expected_categories[msg.id] = expected_category
+        real_message_ids[msg.id] = real_message_id
     
     # Classify messages with session for database-aware validation
     classification_results = classifier.classify_messages(message_data, session)
     
-    # Process results and update database using centralized logic
+    # Process results using centralized classification logic
     processed_count = classifier.process_classification_results(classification_results, session)
     logger.info(f"✅ Processed {processed_count} messages using centralized classification logic")
     
     logger.info(f"✅ Completed classification of {len(messages)} messages")
     
-    return expected_categories
+    return real_message_ids
 
 
-def print_comprehensive_summary(session, expected_categories: Dict[int, str]) -> None:
+def print_comprehensive_summary(session, real_message_ids: Dict[int, str]) -> None:
     """Print a comprehensive summary of the classification results."""
     
     logger.info("="*80)
-    logger.info("📊 COMPREHENSIVE CLASSIFICATION SUMMARY")
+    logger.info("📊 COMPREHENSIVE CLASSIFICATION SUMMARY (REAL MESSAGES)")
     logger.info("="*80)
     
     # Get processing summary
@@ -184,13 +195,13 @@ def print_comprehensive_summary(session, expected_categories: Dict[int, str]) ->
     if detailed_leads:
         logger.info(f"📋 DETAILED LEAD BREAKDOWN:")
         for i, lead in enumerate(detailed_leads, 1):
-            # Get the original message to find expected category
+            # Get the original message to find real message ID
             message = session.query(WhatsAppMessage).filter_by(id=lead['message_id']).first()
-            expected_category = expected_categories.get(message.id) if message else None
+            real_message_id = real_message_ids.get(message.id) if message else None
             
             logger.info(f"\n   {i}. Lead ID: {lead['lead_id']}")
             logger.info(f"      Category: {lead['category_name']}")
-            logger.info(f"      Expected: {expected_category or 'None'}")
+            logger.info(f"      Real Message ID: {real_message_id or 'Unknown'}")
             logger.info(f"      Description: {lead['lead_for']}")
             logger.info(f"      Confidence: {lead['confidence_score']:.2f}")
             logger.info(f"      Sender: {lead['sender_name']}")
@@ -206,10 +217,17 @@ def print_comprehensive_summary(session, expected_categories: Dict[int, str]) ->
 def main():
     """Main function to run the script."""
     
-    logger.info("🤖 Fake Message Classification Script (Test Database)")
+    logger.info("🤖 Real Message Classification Test Script")
     logger.info("=" * 60)
-    logger.info("📝 Using clean test database - no real data affected!")
+    logger.info("📝 Reading from REAL database, writing to FAKE database!")
     logger.info("=" * 60)
+    
+    # Read real unclassified messages
+    real_messages = read_real_unclassified_messages(db_read_limit=50, result_limit=10)
+    
+    if not real_messages:
+        logger.warning("⚠️  No unclassified messages found in production database")
+        return
     
     # Set up test database
     test_db = TestDatabase()
@@ -217,16 +235,15 @@ def main():
     
     try:
         with test_db.get_session() as session:
-            # Create all sample messages
-            logger.info("📝 Creating sample messages...")
-            messages = create_all_sample_messages(session)
-            logger.info(f"✅ Created {len(messages)} sample messages")
+            # Create fake messages from real data
+            fake_messages = create_fake_messages_from_real_data(real_messages, session)
+            logger.info(f"✅ Created {len(fake_messages)} fake messages from real data")
             
             # Classify all messages
-            expected_categories = classify_messages(messages, session)
+            real_message_ids = classify_messages(fake_messages, session)
             
             # Print comprehensive summary
-            print_comprehensive_summary(session, expected_categories)
+            print_comprehensive_summary(session, real_message_ids)
     
     finally:
         # Clean up test database
