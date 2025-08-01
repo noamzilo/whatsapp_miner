@@ -69,9 +69,9 @@ def mock_db_session():
 @pytest.fixture
 def mock_classifier(mock_llm, mock_db_session):
     """Create a MessageClassifier with mocked dependencies."""
-    # Mock the prompt query
+    # Mock the prompt query with a realistic prompt
     mock_prompt = Mock()
-    mock_prompt.prompt_text = "Test classification prompt"
+    mock_prompt.prompt_text = "Analyze if this message is a lead. A lead is someone looking for a service or product. Respond with JSON containing is_lead (boolean), lead_category (string or null), lead_description (string or null), confidence_score (float), and reasoning (string)."
     mock_db_session.query.return_value.filter.return_value.first.return_value = mock_prompt
     
     from src.message_classification.message_classifier import MessageClassifier
@@ -178,6 +178,21 @@ def classifier_with_test_db(test_db, mock_llm):
                 pass
         
         mock_get_session.return_value = TestSessionContext()
+        
+        # Create a default prompt in the test database if it doesn't exist
+        from src.db.models.lead_classification_prompt import LeadClassificationPrompt
+        existing_prompt = test_db.session.query(LeadClassificationPrompt).filter(
+            LeadClassificationPrompt.template_name == "lead_classification"
+        ).first()
+        
+        if not existing_prompt:
+            default_prompt = LeadClassificationPrompt(
+                template_name="lead_classification",
+                prompt_text="Analyze if this message is a lead. A lead is someone looking for a service or product. Respond with JSON containing is_lead (boolean), lead_category (string or null), lead_description (string or null), confidence_score (float), and reasoning (string).",
+                version="1.0"
+            )
+            test_db.session.add(default_prompt)
+            test_db.session.commit()
         
         from src.message_classification.message_classifier import MessageClassifier
         classifier = MessageClassifier()

@@ -6,3 +6,4 @@
 /logs
 /.doppler_env
 /tests/*:*
+/*:*
