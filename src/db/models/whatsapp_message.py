@@ -2,10 +2,10 @@
 
 from sqlalchemy import Column, Integer, Text, ForeignKey, Boolean, TIMESTAMP
 from sqlalchemy.sql import func
-from src.db.db import Base
+from src.db.db_interface import DbInterface
 
 
-class WhatsAppMessage(Base):
+class WhatsAppMessage(DbInterface):
 	__tablename__ = "whatsapp_messages"
 
 	id = Column(Integer, primary_key=True)

@@ -9,15 +9,12 @@ import logging
 import json
 from datetime import datetime
 from typing import List, Dict, Optional, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, not_
+import random
 
 from langchain_groq import ChatGroq
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
-import time
-import random
 
 # Import environment variables with fallbacks for testing
 try:
@@ -26,20 +23,14 @@ except RuntimeError:
     # Fallback for testing without environment variables
     message_classifier_run_every_seconds = 30
     groq_api_key = "test_key"
-from src.db.db import get_db_session
-from src.db.models.whatsapp_message import WhatsAppMessage
-from src.db.models.message_intent_classification import MessageIntentClassification
-from src.db.models.detected_lead import DetectedLead
-from src.db.models.lead_classification_prompt import LeadClassificationPrompt
-from src.db.models.lead_category import LeadCategory
-from src.db.models.message_intent_type import MessageIntentType
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Import logging utilities
+from src.utils.log import get_logger, setup_logger
+from src.paths import logs_root
+
+# Setup logging
+setup_logger(logs_root)
+logger = get_logger(__name__)
 
 
 class ClassificationResult(BaseModel):
@@ -65,66 +56,7 @@ class MessageClassifier:
         
         # Initialize output parser for structured JSON responses
         self.output_parser = PydanticOutputParser(pydantic_object=ClassificationResult)
-        self.classification_prompt = self._get_classification_prompt()
         
-    def _get_classification_prompt(self) -> str:
-        """Get the classification prompt from the database."""
-        with get_db_session() as session:
-            prompt = session.query(LeadClassificationPrompt).filter(
-                LeadClassificationPrompt.template_name == "lead_classification"
-            ).first()
-            
-            if not prompt:
-                # Create default prompt if it doesn't exist
-                default_prompt = LeadClassificationPrompt(
-                    template_name="lead_classification",
-                    prompt_text="""You are a classifier for WhatsApp messages from local groups to identify potential business leads.
-
-Your task is to identify when someone is actively seeking a specific local business or service. Focus on actionable leads where a business owner could reach out to offer their services.
-
-For lead categories, be specific and actionable. Use precise business types like:
-- dentist
-- spanish_classes  
-- restaurant
-- plumber
-- electrician
-- tutor
-- hair_salon
-- mechanic
-- yoga_studio
-- gym
-- pet_groomer
-- house_cleaner
-- landscaper
-- photographer
-- lawyer
-- accountant
-- real_estate_agent
-
-Avoid generic categories like "local_service" or "business". Instead, identify the specific type of business that would be interested in this lead.
-
-Analyze the message and respond with a JSON object containing:
-- is_lead: boolean - Set to true if the person is actively seeking a specific local business or service, false otherwise
-- lead_category: string or null - The specific type of business they're looking for (e.g., "dentist", "plumber", "restaurant"). Use null if not a lead
-- lead_description: string or null - A brief description of what they're seeking (e.g., "Looking for a dentist", "Need urgent plumbing help"). Use null if not a lead
-- confidence_score: float between 0 and 1 - Your confidence in this classification (0.0 = very uncertain, 1.0 = very certain)
-- reasoning: string - Brief explanation of why you classified it this way
-
-Message: {message_text}""",
-                    version="1.1"
-                )
-                session.add(default_prompt)
-                session.commit()
-                return default_prompt.prompt_text
-            
-            return prompt.prompt_text
-    
-    def _get_unclassified_messages(self, session: Session) -> List[WhatsAppMessage]:
-        """Get all messages that haven't been classified yet."""
-        return session.query(WhatsAppMessage).filter(
-            not_(WhatsAppMessage.llm_processed)
-        ).all()
-    
     def _classify_message(self, message_text: str) -> ClassificationResult:
         """Classify a single message using Groq LLM with retry logic and structured output."""
         # Messages under 8 characters are automatically not leads
@@ -291,206 +223,51 @@ Respond with ONLY a valid JSON object matching the structure above."""
         
         return standardized
     
-    def _match_with_existing_categories(self, message_text: str, session: Session) -> Optional[str]:
-        """Try to match the message with existing categories using LLM."""
-        # Get all existing categories
-        existing_categories = session.query(LeadCategory).all()
+    def classify_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Classify a list of messages and return results with database operations to be performed."""
+        logger.info(f"🔍 Starting classification of {len(messages)} messages")
         
-        if not existing_categories:
-            return None
+        results = []
         
-        # Create a list of existing category names
-        category_names = [cat.name for cat in existing_categories]
-        category_list = ", ".join(category_names)
+        for i, message_data in enumerate(messages, 1):
+            try:
+                message_id = message_data['id']
+                message_text = message_data['raw_text']
+                
+                logger.info(f"🔍 Classifying message {i}/{len(messages)}: '{message_text[:50]}...'")
+                
+                # Classify the message
+                classification_result = self._classify_message(message_text)
+                
+                logger.info(f"   📊 Result: {'LEAD' if classification_result.is_lead else 'NOT LEAD'}")
+                if classification_result.is_lead:
+                    logger.info(f"   🎯 Category: {classification_result.lead_category}")
+                    logger.info(f"   📝 Description: {classification_result.lead_description}")
+                logger.info(f"   🎯 Confidence: {classification_result.confidence_score:.2f}")
+                
+                # Prepare result for database operations
+                result = {
+                    'message_id': message_id,
+                    'classification_result': classification_result,
+                    'success': True
+                }
+                
+                results.append(result)
+                
+                logger.info(f"   ✅ Successfully classified message {message_id}")
+                
+            except Exception as e:
+                logger.error(f"   ❌ Error processing message {message_data.get('id', 'unknown')}: {e}")
+                results.append({
+                    'message_id': message_data.get('id', 'unknown'),
+                    'classification_result': None,
+                    'success': False,
+                    'error': str(e)
+                })
+                continue
         
-        try:
-            # Create messages for category matching
-            system_message = f"""You are a helpful assistant that matches WhatsApp messages to existing lead categories.
-
-Available categories: {category_list}
-
-Your task is to determine if the message matches any of the existing categories.
-IMPORTANT: Consider the full context of the original message, not just the classification result.
-The message may contain important details that help determine the best category match.
-
-If it matches, return the exact category name from the list above.
-If it doesn't match any existing category, return "no_match".
-
-Respond with ONLY the category name or "no_match"."""
-            
-            human_message = f"""Original message: {message_text}
-
-Which category does this message match? Consider the full context and meaning of the message.
-Respond with only the category name or "no_match"."""
-            
-            messages = [
-                SystemMessage(content=system_message),
-                HumanMessage(content=human_message)
-            ]
-            
-            # Get response from LLM
-            response = self.llm.invoke(messages)
-            
-            # Parse the response
-            matched_category = response.content.strip().lower()
-            
-            # Check if the matched category exists in our list
-            if matched_category in [cat.name.lower() for cat in existing_categories]:
-                # Find the original case-sensitive category name
-                for cat in existing_categories:
-                    if cat.name.lower() == matched_category:
-                        return cat.name
-            
-            return None
-            
-        except Exception as e:
-            logger.warning(f"Error matching with existing categories: {e}")
-            return None
-
-    def _get_or_create_lead_category(self, session: Session, category_name: str) -> LeadCategory:
-        """Get or create a lead category."""
-        category = session.query(LeadCategory).filter(
-            LeadCategory.name == category_name
-        ).first()
-        
-        if not category:
-            category = LeadCategory(
-                name=category_name,
-                description=f"Category for {category_name} leads",
-                opening_message_template=f"Hi! I saw you're looking for {category_name} services. How can I help?"
-            )
-            session.add(category)
-            session.commit()
-        
-        return category
-    
-    def _get_or_create_intent_type(self, session: Session, intent_name: str) -> MessageIntentType:
-        """Get or create a message intent type."""
-        intent_type = session.query(MessageIntentType).filter(
-            MessageIntentType.name == intent_name
-        ).first()
-        
-        if not intent_type:
-            intent_type = MessageIntentType(
-                name=intent_name,
-                description=f"Intent type for {intent_name}"
-            )
-            session.add(intent_type)
-            session.commit()
-        
-        return intent_type
-    
-    def _create_classification_record(self, session: Session, message: WhatsAppMessage, 
-                                   classification_result: ClassificationResult) -> MessageIntentClassification:
-        """Create a classification record for a message."""
-        # For lead messages, try to match with existing categories first
-        if classification_result.is_lead and classification_result.lead_category:
-            # Try to match with existing categories using the original message text
-            matched_category = self._match_with_existing_categories(message.raw_text, session)
-            
-            if matched_category:
-                # Use the matched existing category
-                lead_category = session.query(LeadCategory).filter(
-                    LeadCategory.name == matched_category
-                ).first()
-                logger.info(f"✅ Matched message to existing category: {matched_category}")
-            else:
-                # Create new category as before
-                lead_category = self._get_or_create_lead_category(
-                    session, classification_result.lead_category
-                )
-                logger.info(f"✅ Created new category: {classification_result.lead_category}")
-        else:
-            # For non-lead messages, use a general category
-            lead_category = self._get_or_create_lead_category(session, "general")
-        
-        # Get or create intent type
-        intent_type = self._get_or_create_intent_type(
-            session, 
-            "lead_seeking" if classification_result.is_lead else "general_message"
-        )
-        
-        # Get the classification prompt
-        prompt = session.query(LeadClassificationPrompt).filter(
-            LeadClassificationPrompt.template_name == "lead_classification"
-        ).first()
-        
-        # Create classification record
-        classification = MessageIntentClassification(
-            message_id=message.id,
-            prompt_template_id=prompt.id,
-            parsed_type_id=intent_type.id,  # Use the correct column name
-            lead_category_id=lead_category.id,
-            confidence_score=classification_result.confidence_score,
-            raw_llm_output=classification_result.model_dump()
-        )
-        
-        session.add(classification)
-        session.commit()
-        
-        return classification
-    
-    def _create_lead_record(self, session: Session, message: WhatsAppMessage, 
-                           classification: MessageIntentClassification,
-                           classification_result: ClassificationResult) -> DetectedLead:
-        """Create a lead record if the message was classified as a lead."""
-        lead = DetectedLead(
-            classification_id=classification.id,
-            user_id=message.sender_id,
-            group_id=message.group_id,
-            lead_for=classification_result.lead_description
-        )
-        
-        session.add(lead)
-        session.commit()
-        
-        return lead
-    
-    def _mark_message_as_processed(self, session: Session, message: WhatsAppMessage):
-        """Mark a message as processed."""
-        message.llm_processed = True
-        session.commit()
-    
-    def classify_messages(self):
-        """Main method to classify all unclassified messages."""
-        logger.info("🔍 Starting message classification process")
-        
-        with get_db_session() as session:
-            unclassified_messages = self._get_unclassified_messages(session)
-            
-            if not unclassified_messages:
-                logger.info("✅ No unclassified messages found")
-                return
-            
-            logger.info(f"📝 Found {len(unclassified_messages)} unclassified messages")
-            
-            for message in unclassified_messages:
-                try:
-                    logger.info(f"🔍 Classifying message ID: {message.id}")
-                    
-                    # Classify the message
-                    classification_result = self._classify_message(message.raw_text)
-                    
-                    # Create classification record
-                    classification = self._create_classification_record(
-                        session, message, classification_result
-                    )
-                    
-                    # If it's a lead, create lead record
-                    if classification_result.is_lead:
-                        lead = self._create_lead_record(
-                            session, message, classification, classification_result
-                        )
-                        logger.info(f"✅ Created lead record for message {message.id}")
-                    
-                    # Mark message as processed
-                    self._mark_message_as_processed(session, message)
-                    
-                    logger.info(f"✅ Successfully classified message {message.id}")
-                    
-                except Exception as e:
-                    logger.error(f"❌ Error processing message {message.id}: {e}")
-                    continue
+        logger.info(f"✅ Completed classification of {len(messages)} messages")
+        return results
     
     def run_continuous(self):
         """Run the classifier in a continuous loop."""
@@ -505,7 +282,9 @@ Respond with only the category name or "no_match"."""
             logger.info(f"🔄 Iteration {iteration} - {current_time}")
             
             try:
-                self.classify_messages()
+                # This would be implemented by the service layer that coordinates
+                # between the classifier and database operations
+                logger.info("Classification iteration completed")
             except Exception as e:
                 logger.error(f"❌ Error in classification iteration: {e}")
             

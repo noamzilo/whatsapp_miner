@@ -2,10 +2,10 @@
 
 from sqlalchemy import Column, Integer, Text, ForeignKey, TIMESTAMP, Index
 from sqlalchemy.sql import func
-from src.db.db import Base
+from src.db.db_interface import DbInterface
 
 
-class ForwardedLead(Base):
+class ForwardedLead(DbInterface):
 	__tablename__ = "forwarded_leads"
 
 	id = Column(Integer, primary_key=True)

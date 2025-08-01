@@ -1,10 +1,10 @@
 # src/db/models/lead_category.py
 
 from sqlalchemy import Column, Integer, Text
-from src.db.db import Base
+from src.db.db_interface import DbInterface
 
 
-class LeadCategory(Base):
+class LeadCategory(DbInterface):
 	__tablename__ = "lead_categories"
 
 	id = Column(Integer, primary_key=True)

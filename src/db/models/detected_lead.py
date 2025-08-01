@@ -2,10 +2,10 @@
 
 from sqlalchemy import Column, Integer, Text, ForeignKey, TIMESTAMP
 from sqlalchemy.sql import func
-from src.db.db import Base
+from src.db.db_interface import DbInterface
 
 
-class DetectedLead(Base):
+class DetectedLead(DbInterface):
 	__tablename__ = "detected_leads"
 
 	id = Column(Integer, primary_key=True)

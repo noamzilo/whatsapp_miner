@@ -3,6 +3,7 @@
 Test Database Setup
 
 Provides test database functionality with proper migrations and test data.
+Uses the same API as the main database to ensure consistency.
 """
 
 import pytest
@@ -15,7 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Generator, Dict, Any
 
-from src.db.models import Base
+from src.db.db_interface import DbInterface
 from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
@@ -24,6 +25,10 @@ from src.db.models.detected_lead import DetectedLead
 from src.db.models.lead_classification_prompt import LeadClassificationPrompt
 from src.db.models.lead_category import LeadCategory
 from src.db.models.message_intent_type import MessageIntentType
+from src.db.db import (
+    create_or_get_user, create_or_get_group, create_message_with_dependencies,
+    get_or_create_lead_category, get_or_create_intent_type, get_classification_prompt
+)
 
 
 class TestDatabase:
@@ -46,7 +51,7 @@ class TestDatabase:
         )
         
         # Create all tables (this runs migrations)
-        Base.metadata.create_all(self.engine)
+        DbInterface.metadata.create_all(self.engine)
         
         # Create session factory
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
@@ -63,26 +68,9 @@ class TestDatabase:
             self.engine.dispose()
     
     def _setup_default_data(self):
-        """Set up default test data."""
-        # Create default classification prompt
-        default_prompt = LeadClassificationPrompt(
-            template_name="lead_classification",
-            prompt_text="""You are a classifier for WhatsApp messages from local groups. Your task is to determine if a message represents someone looking for a local service.
-
-Services can include: dentist, spanish classes, restaurants, tutors, plumbers, electricians, and any other local business or service.
-
-Analyze the message and respond with a JSON object containing:
-- is_lead: boolean indicating if this is a lead
-- lead_category: string describing the category (if it's a lead)
-- lead_description: string describing what they're looking for (if it's a lead)
-- confidence_score: float between 0 and 1
-- reasoning: string explaining your classification
-
-Message: {message_text}""",
-            version="1.0"
-        )
-        self.session.add(default_prompt)
-        self.session.commit()
+        """Set up default test data using the main database API."""
+        # Create default classification prompt using the main API
+        get_classification_prompt(self.session)
     
     @contextmanager
     def get_session(self) -> Generator:
@@ -97,84 +85,70 @@ Message: {message_text}""",
 
 
 class TestDataFactory:
-    """Factory for creating test data."""
+    """Factory for creating test data using the main database API."""
     
     @staticmethod
     def create_test_user(session, user_id: int = 1, **kwargs) -> WhatsAppUser:
-        """Create a test user."""
-        user = WhatsAppUser(
-            id=user_id,
-            whatsapp_id=kwargs.get('whatsapp_id', f"user{user_id}"),
-            display_name=kwargs.get('display_name', f"Test User {user_id}"),
-            created_at=kwargs.get('created_at', datetime.now(timezone.utc))
-        )
-        session.add(user)
-        session.commit()
-        return user
+        """Create a test user using the main database API."""
+        whatsapp_id = kwargs.get('whatsapp_id', f"user{user_id}@c.us")
+        display_name = kwargs.get('display_name', f"Test User {user_id}")
+        
+        # Use the main database API
+        user_id = create_or_get_user(session, whatsapp_id, display_name)
+        return session.query(WhatsAppUser).filter_by(id=user_id).first()
     
     @staticmethod
     def create_test_group(session, group_id: int = 1, **kwargs) -> WhatsAppGroup:
-        """Create a test group."""
-        group = WhatsAppGroup(
-            id=group_id,
-            whatsapp_group_id=kwargs.get('whatsapp_group_id', f"group{group_id}"),
-            group_name=kwargs.get('group_name', f"Test Group {group_id}"),
-            location_city=kwargs.get('location_city', "Test City"),
-            location_neighbourhood=kwargs.get('location_neighbourhood', "Test Neighbourhood"),
-            location=kwargs.get('location', "Test Location"),
-            created_at=kwargs.get('created_at', datetime.now(timezone.utc))
-        )
-        session.add(group)
-        session.commit()
-        return group
+        """Create a test group using the main database API."""
+        whatsapp_group_id = kwargs.get('whatsapp_group_id', f"group{group_id}@g.us")
+        group_name = kwargs.get('group_name', f"Test Group {group_id}")
+        
+        # Use the main database API
+        group_id = create_or_get_group(session, whatsapp_group_id, group_name)
+        return session.query(WhatsAppGroup).filter_by(id=group_id).first()
     
     @staticmethod
-    def create_test_message(session, message_id: int = None, **kwargs) -> WhatsAppMessage:
-        """Create a test message."""
-        # Generate unique ID if not provided
+    def create_test_message(session, message_id: str = None, **kwargs) -> WhatsAppMessage:
+        """Create a test message using the main database API."""
+        # Generate unique message ID if not provided
         if message_id is None:
             import uuid
-            message_id = int(uuid.uuid4().hex[:8], 16) % 1000000  # Use last 6 digits of UUID
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_id = str(uuid.uuid4())[:8]
+            message_id = f"test_msg_{timestamp}_{unique_id}"
         
-        message = WhatsAppMessage(
-            id=message_id,
-            message_id=kwargs.get('message_id', f"msg{message_id}"),
-            sender_id=kwargs.get('sender_id', 1),
-            group_id=kwargs.get('group_id', 1),
-            timestamp=kwargs.get('timestamp', datetime.now(timezone.utc)),
+        # Use the main database API for atomic operation
+        message_id = create_message_with_dependencies(
+            session=session,
+            message_id=message_id,
+            whatsapp_user_id=kwargs.get('whatsapp_user_id', "user1@c.us"),
+            whatsapp_group_id=kwargs.get('whatsapp_group_id', "group1@g.us"),
             raw_text=kwargs.get('raw_text', "Test message"),
+            user_display_name=kwargs.get('user_display_name', "Test User 1"),
+            group_name=kwargs.get('group_name', "Test Group 1"),
             message_type=kwargs.get('message_type', "text"),
-            is_forwarded=kwargs.get('is_forwarded', False),
-            llm_processed=kwargs.get('llm_processed', False)
+            is_forwarded=kwargs.get('is_forwarded', False)
         )
-        session.add(message)
-        session.commit()
-        return message
+        
+        return session.query(WhatsAppMessage).filter_by(id=message_id).first()
     
     @staticmethod
     def create_test_lead_category(session, category_id: int = 1, **kwargs) -> LeadCategory:
-        """Create a test lead category."""
-        category = LeadCategory(
-            id=category_id,
-            name=kwargs.get('name', f"test_category_{category_id}"),
-            description=kwargs.get('description', f"Test category {category_id}"),
-            opening_message_template=kwargs.get('opening_message_template', f"Hi! I saw you're looking for {kwargs.get('name', f'test_category_{category_id}')} services. How can I help?")
-        )
-        session.add(category)
-        session.commit()
-        return category
+        """Create a test lead category using the main database API."""
+        category_name = kwargs.get('name', f"test_category_{category_id}")
+        
+        # Use the main database API
+        category_id = get_or_create_lead_category(session, category_name)
+        return session.query(LeadCategory).filter_by(id=category_id).first()
     
     @staticmethod
     def create_test_intent_type(session, intent_id: int = 1, **kwargs) -> MessageIntentType:
-        """Create a test intent type."""
-        intent = MessageIntentType(
-            id=intent_id,
-            name=kwargs.get('name', f"test_intent_{intent_id}"),
-            description=kwargs.get('description', f"Test intent {intent_id}")
-        )
-        session.add(intent)
-        session.commit()
-        return intent
+        """Create a test intent type using the main database API."""
+        intent_name = kwargs.get('name', f"test_intent_{intent_id}")
+        
+        # Use the main database API
+        intent_id = get_or_create_intent_type(session, intent_name)
+        return session.query(MessageIntentType).filter_by(id=intent_id).first()
 
 
 # Sample test messages for different scenarios

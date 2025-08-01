@@ -2,10 +2,10 @@
 
 from sqlalchemy import Column, Integer, ForeignKey, Float, JSON, TIMESTAMP
 from sqlalchemy.sql import func
-from src.db.db import Base
+from src.db.db_interface import DbInterface
 
 
-class MessageIntentClassification(Base):
+class MessageIntentClassification(DbInterface):
 	__tablename__ = "message_intent_classifications"
 
 	id = Column(Integer, primary_key=True)
