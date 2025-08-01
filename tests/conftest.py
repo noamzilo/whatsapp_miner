@@ -194,9 +194,17 @@ def classifier_with_test_db(test_db, mock_llm):
             test_db.session.add(default_prompt)
             test_db.session.commit()
         
-        from src.message_classification.message_classifier import MessageClassifier
-        classifier = MessageClassifier()
-        return classifier, test_db, mock_llm
+        # Mock the LLM initialization to prevent real API calls
+        with patch('src.message_classification.message_classifier.ChatGroq') as mock_chat_groq:
+            mock_chat_groq.return_value = mock_llm
+            
+            from src.message_classification.message_classifier import MessageClassifier
+            classifier = MessageClassifier()
+            
+            # Ensure the mock LLM is set on the classifier
+            classifier.llm = mock_llm
+            
+            return classifier, test_db, mock_llm
 
 
 @pytest.fixture
