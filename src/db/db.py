@@ -45,7 +45,8 @@ def create_or_get_group(session, whatsapp_group_id: str, group_name: str = "") -
 
 def create_message(session, message_id: str, sender_id: int, group_id: int, 
                   raw_text: str, message_type: str = "text", 
-                  is_forwarded: bool = False, timestamp: Optional[datetime] = None) -> int:
+                  is_forwarded: bool = False, timestamp: Optional[datetime] = None,
+                  is_real: bool = True) -> int:
     """Create a message, returns message ID. Ensures user and group exist."""
     if timestamp is None:
         timestamp = datetime.now(timezone.utc)
@@ -73,7 +74,8 @@ def create_message(session, message_id: str, sender_id: int, group_id: int,
         raw_text=raw_text,
         message_type=message_type,
         is_forwarded=is_forwarded,
-        llm_processed=False
+        llm_processed=False,
+        is_real=is_real
     )
     session.add(message)
     session.flush()
@@ -85,7 +87,7 @@ def create_message_with_dependencies(session, message_id: str, whatsapp_user_id:
                                    whatsapp_group_id: str, raw_text: str, 
                                    user_display_name: str = "", group_name: str = "",
                                    message_type: str = "text", is_forwarded: bool = False, 
-                                   timestamp: Optional[datetime] = None) -> int:
+                                   timestamp: Optional[datetime] = None, is_real: bool = True) -> int:
     """Create a message with automatic user and group creation. Atomic operation."""
     if timestamp is None:
         timestamp = datetime.now(timezone.utc)
@@ -103,7 +105,7 @@ def create_message_with_dependencies(session, message_id: str, whatsapp_user_id:
     
     # Create the message
     return create_message(session, message_id, user_id, group_id, raw_text, 
-                        message_type, is_forwarded, timestamp)
+                        message_type, is_forwarded, timestamp, is_real)
 
 
 def create_fake_message_with_dependencies(session, message_text: str, 
@@ -126,7 +128,7 @@ def create_fake_message_with_dependencies(session, message_text: str,
     group_whatsapp_id = f"group{group_id}@g.us"
     group_name = f"Test Group {group_id}"
     
-    # Use the atomic operation
+    # Use the atomic operation with is_real=False for fake messages
     return create_message_with_dependencies(
         session=session,
         message_id=message_id,
@@ -134,7 +136,8 @@ def create_fake_message_with_dependencies(session, message_text: str,
         whatsapp_group_id=group_whatsapp_id,
         raw_text=message_text,
         user_display_name=user_display_name,
-        group_name=group_name
+        group_name=group_name,
+        is_real=False  # Fake messages are not real
     )
 
 

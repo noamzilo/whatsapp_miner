@@ -117,6 +117,7 @@ def incoming_message_received(body: dict) -> None:
 			raw_text=message_text,
 			message_type=message_type,
 			is_forwarded=is_forwarded,
+			is_real=True,  # Messages from real WhatsApp API are real
 		)
 		session.add(new_msg)
 		session.commit()

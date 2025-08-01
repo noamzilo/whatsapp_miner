@@ -17,3 +17,4 @@ class WhatsAppMessage(DbInterface):
 	message_type = Column(Text)
 	is_forwarded = Column(Boolean)
 	llm_processed = Column(Boolean, nullable=False, server_default="false")
+	is_real = Column(Boolean, nullable=False, server_default="true")

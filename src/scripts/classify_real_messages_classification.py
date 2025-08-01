@@ -10,6 +10,9 @@ Usage:
     python src/scripts/test_real_messages_classification.py
 """
 
+# Configuration: Set to True to write results to real database, False for fake database
+USE_REAL_DATABASE = False
+
 import sys
 import os
 import uuid
@@ -219,7 +222,11 @@ def main():
     
     logger.info("🤖 Real Message Classification Test Script")
     logger.info("=" * 60)
-    logger.info("📝 Reading from REAL database, writing to FAKE database!")
+    
+    if USE_REAL_DATABASE:
+        logger.info("📝 Reading from REAL database, writing to REAL database!")
+    else:
+        logger.info("📝 Reading from REAL database, writing to FAKE database!")
     logger.info("=" * 60)
     
     # Read real unclassified messages
@@ -229,26 +236,39 @@ def main():
         logger.warning("⚠️  No unclassified messages found in production database")
         return
     
-    # Set up test database
-    test_db = TestDatabase()
-    test_db.setup()
-    
-    try:
-        with test_db.get_session() as session:
-            # Create fake messages from real data
+    if USE_REAL_DATABASE:
+        # Use real database session
+        with get_db_session() as session:
+            # Create fake messages from real data in real database
             fake_messages = create_fake_messages_from_real_data(real_messages, session)
-            logger.info(f"✅ Created {len(fake_messages)} fake messages from real data")
+            logger.info(f"✅ Created {len(fake_messages)} fake messages from real data in real database")
             
             # Classify all messages
             real_message_ids = classify_messages(fake_messages, session)
             
             # Print comprehensive summary
             print_comprehensive_summary(session, real_message_ids)
-    
-    finally:
-        # Clean up test database
-        test_db.teardown()
-        logger.info("🧹 Test database cleaned up")
+    else:
+        # Set up test database
+        test_db = TestDatabase()
+        test_db.setup()
+        
+        try:
+            with test_db.get_session() as session:
+                # Create fake messages from real data
+                fake_messages = create_fake_messages_from_real_data(real_messages, session)
+                logger.info(f"✅ Created {len(fake_messages)} fake messages from real data")
+                
+                # Classify all messages
+                real_message_ids = classify_messages(fake_messages, session)
+                
+                # Print comprehensive summary
+                print_comprehensive_summary(session, real_message_ids)
+        
+        finally:
+            # Clean up test database
+            test_db.teardown()
+            logger.info("🧹 Test database cleaned up")
 
 
 if __name__ == "__main__":

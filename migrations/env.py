@@ -5,16 +5,20 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
-from src.db.models import Base
+from src.db.db_interface import DbInterface
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Inject actual database URL from environment
-db_url = os.getenv("SUPABASE_DATABASE_CONNECTION_STRING")
-if db_url is None:
-	raise RuntimeError("SUPABASE_DATABASE_CONNECTION_STRING is not set in environment")
+# Inject actual database URL from environment with same sanitization as the app
+def sanitize_env_var(name):
+    value = os.getenv(name)
+    if value is None:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value.replace('"', "")
+
+db_url = sanitize_env_var("SUPABASE_DATABASE_CONNECTION_STRING")
 config.set_main_option("sqlalchemy.url", db_url)
 
 # Interpret the config file for Python logging.
@@ -27,7 +31,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 
-target_metadata = Base.metadata
+target_metadata = DbInterface.metadata
 
 
 def run_migrations_offline() -> None:
