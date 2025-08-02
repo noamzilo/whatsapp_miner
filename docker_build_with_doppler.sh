@@ -4,4 +4,4 @@
 # Usage: ./docker_build_with_doppler.sh [--push]
 set -euo pipefail
 
-doppler run --command "./docker_build.sh $*"
+doppler run --project whatsapp_miner_backend --config dev_personal --command "./docker_build.sh $*"

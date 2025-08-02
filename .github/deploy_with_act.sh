@@ -41,7 +41,7 @@ if [[ "$TEST_MODE" == "true" ]]; then
     # Run Act with timeout in test mode
     timeout 600 bash -c '
 echo "🔄 Starting Act deployment with timeout..."
-doppler secrets download --no-file --format env \
+doppler secrets download --project whatsapp_miner_backend --config dev_personal --no-file --format env \
 	| sed "s/^/-s /" \
 	| xargs act \
 		-P ubuntu-latest=catthehacker/ubuntu:act-latest \
@@ -72,7 +72,7 @@ else
     echo ""
     
     # Run Act normally with reuse flag to prevent force pull
-    doppler secrets download --no-file --format env \
+    doppler secrets download --project whatsapp_miner_backend --config dev_personal --no-file --format env \
 	| sed 's/^/-s /' \
 	| xargs act \
 		-P ubuntu-latest=catthehacker/ubuntu:act-latest \

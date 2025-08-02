@@ -3,4 +3,4 @@
 # Local wrapper: run deploy with Doppler-injected secrets.
 set -euo pipefail
 
-doppler run --command "./docker_deploy.sh"
+doppler run --project whatsapp_miner_backend --config dev_personal --command "./docker_deploy.sh"

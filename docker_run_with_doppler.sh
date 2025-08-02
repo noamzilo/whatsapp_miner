@@ -6,7 +6,7 @@ set -euo pipefail
 
 # ── 1. Re-exec inside Doppler if not already ────────────────────────────────
 if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
-	exec doppler run --preserve-env -- "$0" "$@"
+	exec doppler run --project whatsapp_miner_backend --config dev_personal --preserve-env -- "$0" "$@"
 fi
 
 # ── 2. Required Doppler keys must exist ─────────────────────────────────────
