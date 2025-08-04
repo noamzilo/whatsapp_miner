@@ -20,6 +20,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
+import re
+
 from src.message_classification.message_classifier import MessageClassifier
 from src.db.test_db import TestDatabase, TestDataFactory
 from src.db.models.whatsapp_message import WhatsAppMessage
@@ -34,7 +36,7 @@ from src.db.db import (
     create_fake_message_with_dependencies, get_unclassified_messages,
     mark_message_as_processed, create_classification_record, create_lead_record,
     get_or_create_lead_category, get_or_create_intent_type, get_classification_prompt,
-    match_with_existing_categories
+    match_with_existing_categories, get_message_by_id
 )
 from src.db.db_interface import get_db_session
 from src.utils.log import get_logger, setup_logger
@@ -53,10 +55,11 @@ def read_real_unclassified_messages(db_read_limit: int = 50, result_limit: int =
     messages = []
     try:
         with get_db_session() as session:
-            # Get unclassified messages from real database
-            unclassified_messages = session.query(WhatsAppMessage).filter(
-                WhatsAppMessage.llm_processed == False
-            ).limit(db_read_limit).all()
+            # Get unclassified messages from real database, ordered by newest first
+            unclassified_messages = get_unclassified_messages(session)
+            
+            # Limit to the requested number
+            unclassified_messages = unclassified_messages[:db_read_limit]
             
             logger.info(f"✅ Found {len(unclassified_messages)} unclassified messages in production database")
             
@@ -103,7 +106,7 @@ def create_fake_messages_from_real_data(real_messages: List[Dict[str, Any]], tes
             )
             
             # Get the created message
-            fake_message = test_session.query(WhatsAppMessage).filter_by(id=message_id).first()
+            fake_message = get_message_by_id(test_session, message_id)
             
             # Store real message ID in metadata for reference
             fake_message.raw_text += f" [REAL_ID: {real_msg['real_message_id']}]"
@@ -138,7 +141,6 @@ def classify_messages(messages: List[WhatsAppMessage], session) -> Dict[int, str
         
         if "[REAL_ID:" in msg.raw_text:
             # Extract real message ID and clean the text
-            import re
             match = re.search(r'\[REAL_ID: (\d+)\]', msg.raw_text)
             if match:
                 real_message_id = int(match.group(1))
@@ -199,7 +201,7 @@ def print_comprehensive_summary(session, real_message_ids: Dict[int, str]) -> No
         logger.info(f"📋 DETAILED LEAD BREAKDOWN:")
         for i, lead in enumerate(detailed_leads, 1):
             # Get the original message to find real message ID
-            message = session.query(WhatsAppMessage).filter_by(id=lead['message_id']).first()
+            message = get_message_by_id(session, lead['message_id'])
             real_message_id = real_message_ids.get(message.id) if message else None
             
             logger.info(f"\n   {i}. Lead ID: {lead['lead_id']}")

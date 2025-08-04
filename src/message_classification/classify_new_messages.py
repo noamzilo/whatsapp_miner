@@ -35,6 +35,7 @@ from src.db.db import (
 from src.env_var_injection import message_classifier_run_every_seconds
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.models.whatsapp_user import WhatsAppUser
+from src.db.db import get_group_by_id, get_user_by_id
 
 # Setup logging
 setup_logger(logs_root)
@@ -68,12 +69,12 @@ class MessageClassifierService:
             try:
                 with get_db_session() as session:                    
                     if group_id:
-                        group = session.query(WhatsAppGroup).filter_by(id=group_id).first()
+                        group = get_group_by_id(session, group_id)
                         if group:
                             group_name = group.group_name or f"Group {group_id}"
                     
                     if sender_id:
-                        user = session.query(WhatsAppUser).filter_by(id=sender_id).first()
+                        user = get_user_by_id(session, sender_id)
                         if user:
                             sender_name = user.display_name or f"User {sender_id}"
             except Exception as e:

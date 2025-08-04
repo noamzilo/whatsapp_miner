@@ -14,11 +14,11 @@ project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.db.db_interface import get_db_session
-from src.db.models.whatsapp_message import WhatsAppMessage
-from src.db.models.detected_lead import DetectedLead
-from src.db.models.lead_category import LeadCategory
-from src.db.models.message_intent_classification import MessageIntentClassification
+from src.db.db import (
+    get_db_session, get_total_messages_count, get_processed_messages_count,
+    get_unprocessed_messages_count, get_leads_count, get_classifications_count,
+    get_categories_count
+)
 from src.utils.log import get_logger, setup_logger
 
 # Setup logging
@@ -33,17 +33,13 @@ def verify_database_state():
     try:
         with get_db_session() as session:
             # Count various entities
-            total_messages = session.query(WhatsAppMessage).count()
-            processed_messages = session.query(WhatsAppMessage).filter(
-                WhatsAppMessage.llm_processed == True
-            ).count()
-            unprocessed_messages = session.query(WhatsAppMessage).filter(
-                WhatsAppMessage.llm_processed == False
-            ).count()
+            total_messages = get_total_messages_count(session)
+            processed_messages = get_processed_messages_count(session)
+            unprocessed_messages = get_unprocessed_messages_count(session)
             
-            total_leads = session.query(DetectedLead).count()
-            total_classifications = session.query(MessageIntentClassification).count()
-            total_categories = session.query(LeadCategory).count()
+            total_leads = get_leads_count(session)
+            total_classifications = get_classifications_count(session)
+            total_categories = get_categories_count(session)
             
             logger.info("")
             logger.info("📊 DATABASE STATE:")

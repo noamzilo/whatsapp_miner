@@ -23,11 +23,11 @@ if str(project_root) not in sys.path:
 
 # Import paths for relative imports
 from src.paths import project_root
-from src.db.db_interface import get_db_session
-from src.db.models.whatsapp_message import WhatsAppMessage
-from src.db.models.detected_lead import DetectedLead
-from src.db.models.lead_category import LeadCategory
-from src.db.models.message_intent_classification import MessageIntentClassification
+from src.db.db import (
+    get_db_session, update_messages_to_unprocessed, delete_all_leads,
+    delete_all_classifications, delete_all_categories, get_processed_messages_count,
+    get_leads_count, get_classifications_count, get_categories_count
+)
 from src.utils.log import get_logger, setup_logger
 
 # Setup logging
@@ -43,40 +43,33 @@ def reset_lead_status_in_db():
         with get_db_session() as session:
             # 1. Set all messages "llm_processed" to FALSE
             logger.info("📝 Resetting message processing status...")
-            messages_updated = session.query(WhatsAppMessage).filter(
-                WhatsAppMessage.llm_processed == True
-            ).update({"llm_processed": False})
+            messages_updated = update_messages_to_unprocessed(session)
             session.commit()
             logger.info(f"✅ Updated {messages_updated} messages to unprocessed")
             
             # 2. Remove all leads
             logger.info("🗑️  Removing all detected leads...")
-            leads_deleted = session.query(DetectedLead).count()
-            session.query(DetectedLead).delete()
+            leads_deleted = delete_all_leads(session)
             session.commit()
             logger.info(f"✅ Deleted {leads_deleted} detected leads")
             
             # 3. Remove all message_intent_classification rows
             logger.info("🗑️  Removing all message intent classifications...")
-            classifications_deleted = session.query(MessageIntentClassification).count()
-            session.query(MessageIntentClassification).delete()
+            classifications_deleted = delete_all_classifications(session)
             session.commit()
             logger.info(f"✅ Deleted {classifications_deleted} message intent classifications")
             
             # 4. Remove all lead categories
             logger.info("🗑️  Removing all lead categories...")
-            categories_deleted = session.query(LeadCategory).count()
-            session.query(LeadCategory).delete()
+            categories_deleted = delete_all_categories(session)
             session.commit()
             logger.info(f"✅ Deleted {categories_deleted} lead categories")
             
             # 5. Verify the reset
-            remaining_messages = session.query(WhatsAppMessage).filter(
-                WhatsAppMessage.llm_processed == True
-            ).count()
-            remaining_leads = session.query(DetectedLead).count()
-            remaining_classifications = session.query(MessageIntentClassification).count()
-            remaining_categories = session.query(LeadCategory).count()
+            remaining_messages = get_processed_messages_count(session)
+            remaining_leads = get_leads_count(session)
+            remaining_classifications = get_classifications_count(session)
+            remaining_categories = get_categories_count(session)
             
             logger.info("")
             logger.info("📊 RESET VERIFICATION:")

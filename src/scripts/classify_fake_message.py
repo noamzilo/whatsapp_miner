@@ -15,7 +15,9 @@ import os
 import uuid
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
+
+import re
 
 from src.message_classification.message_classifier import MessageClassifier
 from src.db.test_db import TestDatabase, TestDataFactory
@@ -28,10 +30,7 @@ from src.db.models.lead_category import LeadCategory
 from src.db.models.message_intent_type import MessageIntentType
 from src.db.db import (
     get_lead_statistics, get_detailed_lead_summary, get_processing_summary,
-    create_fake_message_with_dependencies, get_unclassified_messages,
-    mark_message_as_processed, create_classification_record, create_lead_record,
-    get_or_create_lead_category, get_or_create_intent_type, get_classification_prompt,
-    match_with_existing_categories
+    create_fake_message_with_dependencies, get_message_by_id
 )
 from src.utils.log import get_logger, setup_logger
 from src.paths import logs_root
@@ -83,7 +82,7 @@ def create_all_sample_messages(session) -> List[WhatsAppMessage]:
     messages = []
     for i, (message_text, expected_category) in enumerate(sample_messages_with_expected, 1):
         message_id = create_fake_message_with_dependencies(session, message_text, user_id=i, group_id=1)
-        message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
+        message = get_message_by_id(session, message_id)
         
         # Store expected category in message metadata (we'll use the description field temporarily)
         if expected_category:
@@ -97,7 +96,7 @@ def create_all_sample_messages(session) -> List[WhatsAppMessage]:
     messages = []
     for i, message_text in enumerate(sample_messages, 1):
         message_id = create_fake_message_with_dependencies(session, message_text, user_id=i, group_id=1)
-        message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
+        message = get_message_by_id(session, message_id)
         messages.append(message)
         logger.info(f"✅ Created message {i}: '{message_text[:50]}...'")
     
@@ -124,7 +123,6 @@ def classify_messages(messages: List[WhatsAppMessage], session) -> Dict[int, str
         
         if "[EXPECTED:" in msg.raw_text:
             # Extract expected category and clean the text
-            import re
             match = re.search(r'\[EXPECTED: (\w+)\]', msg.raw_text)
             if match:
                 expected_category = match.group(1)
@@ -185,7 +183,7 @@ def print_comprehensive_summary(session, expected_categories: Dict[int, str]) ->
         logger.info(f"📋 DETAILED LEAD BREAKDOWN:")
         for i, lead in enumerate(detailed_leads, 1):
             # Get the original message to find expected category
-            message = session.query(WhatsAppMessage).filter_by(id=lead['message_id']).first()
+            message = get_message_by_id(session, lead['message_id'])
             expected_category = expected_categories.get(message.id) if message else None
             
             logger.info(f"\n   {i}. Lead ID: {lead['lead_id']}")

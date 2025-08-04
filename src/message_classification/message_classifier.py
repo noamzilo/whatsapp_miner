@@ -27,6 +27,7 @@ except RuntimeError:
 # Import logging utilities
 from src.utils.log import get_logger, setup_logger
 from src.paths import logs_root
+from src.db.db import get_category_names, get_message_by_id, get_lead_by_id, get_total_leads_count
 
 # Setup logging
 setup_logger(logs_root)
@@ -61,9 +62,7 @@ class MessageClassifier:
         
     def _get_existing_categories(self, session) -> List[str]:
         """Get all existing category names from database."""
-        from src.db.models.lead_category import LeadCategory
-        categories = session.query(LeadCategory.name).all()
-        return [cat[0] for cat in categories]
+        return get_category_names(session)
     
     def _build_dynamic_prompt(self, existing_categories: List[str], is_retry: bool = False) -> str:
         """Build dynamic prompt with existing categories."""
@@ -525,8 +524,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
                     logger.info(f"   📊 Created classification record (ID: {classification_id})")
                     
                     # Create lead record ONLY for leads
-                    from src.db.models.whatsapp_message import WhatsAppMessage
-                    message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
+                    message = get_message_by_id(session, message_id)
                     
                     if message:
                         logger.info(f"   🎯 Creating lead record for message {message_id} (sender: {message.sender_id}, group: {message.group_id})")
@@ -544,8 +542,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
                         logger.info(f"   📝 Lead description: {classification_result.lead_description}")
                         
                         # Verify the lead was actually created
-                        from src.db.models.detected_lead import DetectedLead
-                        created_lead = session.query(DetectedLead).filter_by(id=lead_id).first()
+                        created_lead = get_lead_by_id(session, lead_id)
                         if created_lead:
                             logger.info(f"   ✅ VERIFIED: Lead record {lead_id} exists in database")
                         else:
@@ -581,8 +578,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
         
         # Final verification - count actual leads in database
         try:
-            from src.db.models.detected_lead import DetectedLead
-            total_leads_in_db = session.query(DetectedLead).count()
+            total_leads_in_db = get_total_leads_count(session)
             logger.info(f"🗄️  Total leads in database: {total_leads_in_db}")
         except Exception as e:
             logger.warning(f"Could not verify total leads in database: {e}")

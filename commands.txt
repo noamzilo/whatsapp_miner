@@ -13,3 +13,6 @@ doppler run --project whatsapp_miner_backend --config dev_personal -- poetry run
 
 generate env file (for pycharm)
 doppler secrets download --project whatsapp_miner_backend --config dev --no-file --format env > /home/noams/src/whatsapp_miner/.env.doppler
+
+reset leads db
+doppler run --project whatsapp_miner_backend --config dev_personal -- python ./src/scripts/reset_lead_status_in_db.py

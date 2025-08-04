@@ -142,10 +142,10 @@ def create_fake_message_with_dependencies(session, message_text: str,
 
 
 def get_unclassified_messages(session) -> List[Any]:
-    """Get all messages that haven't been classified yet."""
+    """Get all messages that haven't been classified yet, ordered by newest first."""
     return session.query(WhatsAppMessage).filter(
         not_(WhatsAppMessage.llm_processed)
-    ).all()
+    ).order_by(WhatsAppMessage.timestamp.desc()).all()
 
 
 def mark_message_as_processed(session, message_id: int) -> None:
@@ -461,3 +461,141 @@ def get_processing_summary(session) -> Dict[str, Any]:
         'successful_classifications': successful_classifications,
         'success_rate': success_rate
     }
+
+
+# Additional database access functions to centralize all queries
+def get_user_by_id(session, user_id: int):
+    """Get user by ID."""
+    return session.query(WhatsAppUser).filter_by(id=user_id).first()
+
+
+def get_user_by_whatsapp_id(session, whatsapp_id: str):
+    """Get user by WhatsApp ID."""
+    return session.query(WhatsAppUser).filter_by(whatsapp_id=whatsapp_id).first()
+
+
+def get_group_by_id(session, group_id: int):
+    """Get group by ID."""
+    return session.query(WhatsAppGroup).filter_by(id=group_id).first()
+
+
+def get_group_by_whatsapp_id(session, whatsapp_group_id: str):
+    """Get group by WhatsApp group ID."""
+    return session.query(WhatsAppGroup).filter_by(whatsapp_group_id=whatsapp_group_id).first()
+
+
+def get_message_by_id(session, message_id: int):
+    """Get message by ID."""
+    return session.query(WhatsAppMessage).filter_by(id=message_id).first()
+
+
+def get_message_by_message_id(session, message_id: str):
+    """Get message by message_id string."""
+    return session.query(WhatsAppMessage).filter_by(message_id=message_id).first()
+
+
+def get_lead_by_id(session, lead_id: int):
+    """Get lead by ID."""
+    return session.query(DetectedLead).filter_by(id=lead_id).first()
+
+
+def get_category_by_name(session, category_name: str):
+    """Get category by name."""
+    return session.query(LeadCategory).filter_by(name=category_name).first()
+
+
+def get_intent_type_by_name(session, intent_name: str):
+    """Get intent type by name."""
+    return session.query(MessageIntentType).filter_by(name=intent_name).first()
+
+
+def get_all_categories(session):
+    """Get all categories."""
+    return session.query(LeadCategory).all()
+
+
+def get_category_names(session):
+    """Get all category names."""
+    categories = session.query(LeadCategory.name).all()
+    return [cat[0] for cat in categories]
+
+
+def get_total_leads_count(session):
+    """Get total number of leads in database."""
+    return session.query(DetectedLead).count()
+
+
+def get_all_classifications(session):
+    """Get all classifications."""
+    return session.query(MessageIntentClassification).all()
+
+
+def get_all_leads(session):
+    """Get all leads."""
+    return session.query(DetectedLead).all()
+
+
+def get_all_categories_count(session):
+    """Get total number of categories."""
+    return session.query(LeadCategory).count()
+
+
+def get_all_classifications_count(session):
+    """Get total number of classifications."""
+    return session.query(MessageIntentClassification).count()
+
+
+def get_processed_messages_count(session):
+    """Get count of processed messages."""
+    return session.query(WhatsAppMessage).filter(
+        WhatsAppMessage.llm_processed == True
+    ).count()
+
+
+def get_unprocessed_messages_count(session):
+    """Get count of unprocessed messages."""
+    return session.query(WhatsAppMessage).filter(
+        WhatsAppMessage.llm_processed == False
+    ).count()
+
+
+def get_total_messages_count(session):
+    """Get total number of messages."""
+    return session.query(WhatsAppMessage).count()
+
+
+def update_messages_to_unprocessed(session):
+    """Update all processed messages to unprocessed."""
+    return session.query(WhatsAppMessage).filter(
+        WhatsAppMessage.llm_processed == True
+    ).update({"llm_processed": False})
+
+
+def delete_all_leads(session):
+    """Delete all leads."""
+    return session.query(DetectedLead).delete()
+
+
+def delete_all_classifications(session):
+    """Delete all classifications."""
+    return session.query(MessageIntentClassification).delete()
+
+
+def delete_all_categories(session):
+    """Delete all categories."""
+    return session.query(LeadCategory).delete()
+
+
+def get_leads_count(session):
+    """Get count of leads."""
+    return session.query(DetectedLead).count()
+
+
+def get_classifications_count(session):
+    """Get count of classifications."""
+    return session.query(MessageIntentClassification).count()
+
+
+def get_categories_count(session):
+    """Get count of categories."""
+    return session.query(LeadCategory).count()

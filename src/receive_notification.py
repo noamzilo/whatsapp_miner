@@ -5,9 +5,10 @@ from env_var_injection import instance_id, api_token
 from whatsapp_api_client_python import API
 from src.utils.log import get_logger, setup_logger
 from src.db.db_interface import get_session_local
+from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
-from src.db.models.whatsapp_message import WhatsAppMessage
+from src.db.db import get_message_by_message_id, get_user_by_whatsapp_id, get_group_by_whatsapp_id
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from sqlalchemy.engine import Engine
@@ -87,19 +88,19 @@ def incoming_message_received(body: dict) -> None:
 			return
 
 		# Skip if already exists
-		if session.query(WhatsAppMessage).filter_by(message_id=message_id).first():
+		if get_message_by_message_id(session, message_id):
 			print(f"[Skip] Message {message_id} already in DB.")
 			return
 
 		# Upsert user
-		user = session.query(WhatsAppUser).filter_by(whatsapp_id=user_id).first()
+		user = get_user_by_whatsapp_id(session, user_id)
 		if not user:
 			user = WhatsAppUser(whatsapp_id=user_id, display_name=user_name)
 			session.add(user)
 			session.flush()
 
 		# Upsert group
-		group = session.query(WhatsAppGroup).filter_by(whatsapp_group_id=group_id).first()
+		group = get_group_by_whatsapp_id(session, group_id)
 		if not group:
 			group = WhatsAppGroup(
 				whatsapp_group_id=group_id,
