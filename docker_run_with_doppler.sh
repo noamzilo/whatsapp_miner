@@ -19,6 +19,7 @@ DOPPLER_CONFIG="${DOPPLER_CONFIG%\"}"
 DOPPLER_CONFIG="${DOPPLER_CONFIG#\"}"
 
 echo "✅ Running in Doppler context: $DOPPLER_PROJECT/$DOPPLER_CONFIG"
+echo "🌍 Environment: ${ENVIRONMENT:-dev}"
 
 # ── 2. Required Doppler keys must exist ─────────────────────────────────────
 required_vars=(

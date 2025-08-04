@@ -83,10 +83,10 @@ jobs:
         run: chmod +x docker_*.sh
 
       - name: Validate deployment setup
-        run: ./docker_validate_setup.sh
+        run: ./docker_validate_setup.sh --env ${{ needs.set-env.outputs.environment }}
 
       - name: Run Deployment Script
-        run: ./docker_deploy.sh
+        run: ./docker_deploy.sh --env ${{ needs.set-env.outputs.environment }}
 
       - name: Verify deployment status
-        run: ./docker_show_status.sh
+        run: ./docker_show_status.sh --env ${{ needs.set-env.outputs.environment }}

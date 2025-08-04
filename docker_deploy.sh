@@ -1,7 +1,33 @@
 #!/usr/bin/env bash
 # docker_deploy.sh
 # Build, push, run migrations, and restart the container on the remote host.
+# Usage: ./docker_deploy.sh [--env dev|prd]
 set -euo pipefail
+
+# Parse arguments
+ENVIRONMENT="dev"  # Default to dev
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env)
+            ENVIRONMENT="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--env dev|prd]"
+            exit 1
+            ;;
+    esac
+done
+
+# Validate environment
+if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prd" ]]; then
+    echo "❌ Error: Invalid environment '$ENVIRONMENT'. Must be dev or prd"
+    exit 1
+fi
+
+echo "🌍 Environment: $ENVIRONMENT"
 
 : "${AWS_EC2_REGION:?}"
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?}"
@@ -20,7 +46,7 @@ aws ecr get-login-password --region "$AWS_EC2_REGION" \
 
 # Build and push image
 echo "🔨 Building and pushing image..."
-./docker_build.sh --push
+./docker_build.sh --env "$ENVIRONMENT" --push
 
 # Get the image digest for verification
 NEW_IMAGE_DIGEST="$(docker images --digests --format "table {{.Repository}}:{{.Tag}}\t{{.Digest}}" | grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}')"
@@ -29,19 +55,18 @@ echo "📦 New image digest: $NEW_IMAGE_DIGEST"
 # Export for verification in remote script
 export NEW_IMAGE_DIGEST
 
-# Run migrations before deployment
-echo "🗄️  Running database migrations..."
-./run_migrations.sh --env dev
-./run_migrations.sh --env prd
+# Run migrations for the specified environment
+echo "🗄️  Running database migrations for environment: $ENVIRONMENT"
+./run_migrations.sh --env "$ENVIRONMENT"
 
 # Deploy to remote
 echo "🚀 Deploying to remote host..."
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     echo "🏗️  Running in GitHub Actions - using GitHub secrets"
-    ./docker_run.sh --remote
+    ./docker_run.sh --env "$ENVIRONMENT" --remote
 else
     echo "🌪️  Running locally - using Doppler secrets"
-    ./docker_run.sh --remote
+    ./docker_run.sh --env "$ENVIRONMENT" --remote
 fi
 
 # Show final status
@@ -50,5 +75,6 @@ echo "📊 Final deployment status:"
 
 echo ""
 echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"
+echo "   Environment: $ENVIRONMENT"
 echo "   New image digest: $NEW_IMAGE_DIGEST"
 echo ""

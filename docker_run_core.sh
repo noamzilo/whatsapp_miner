@@ -8,6 +8,7 @@
 #   AWS_ECR_REGISTRY
 #   DOCKER_COMPOSE_SERVICES           default: all services
 #   NEW_IMAGE_DIGEST                  optional: for deployment verification
+#   ENVIRONMENT                       dev or prd (default: dev)
 
 set -euo pipefail
 
@@ -17,9 +18,11 @@ set -euo pipefail
 : "${AWS_ECR_REGISTRY:?}"
 
 COMPOSE_SVCS="${DOCKER_COMPOSE_SERVICES:-}"
+ENVIRONMENT="${ENVIRONMENT:-dev}"
 
 echo "🔧 Starting docker-compose deployment..."
 echo "   Image: $DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+echo "   Environment: $ENVIRONMENT"
 echo "   Services: ${COMPOSE_SVCS:-all}"
 echo "   Env file: $ENV_FILE"
 

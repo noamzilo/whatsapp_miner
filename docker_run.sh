@@ -1,12 +1,42 @@
 #!/usr/bin/env bash
 # docker_run.sh
-#   ./docker_run.sh            → local run (simply defer to docker_run_with_doppler.sh)
-#   ./docker_run.sh --remote   → deploy on EC2 via SSH
+#   ./docker_run.sh [--env dev|prd]            → local run (simply defer to docker_run_with_doppler.sh)
+#   ./docker_run.sh [--env dev|prd] --remote   → deploy on EC2 via SSH
 
 set -euo pipefail
-MODE="${1:-local}"
 
-if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
+# Parse arguments
+ENVIRONMENT="dev"  # Default to dev
+MODE="local"
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env)
+            ENVIRONMENT="$2"
+            shift 2
+            ;;
+        --remote)
+            MODE="remote"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--env dev|prd] [--remote]"
+            exit 1
+            ;;
+    esac
+done
+
+# Validate environment
+if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prd" ]]; then
+    echo "❌ Error: Invalid environment '$ENVIRONMENT'. Must be dev or prd"
+    exit 1
+fi
+
+echo "🌍 Environment: $ENVIRONMENT"
+echo "🚀 Mode: $MODE"
+
+if [[ "$MODE" == "remote" ]]; then
 	# ── Remote path ───────────────────────────────────────────────────────────
 	# Check if we're in GitHub Actions or local environment
 	if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
@@ -72,11 +102,12 @@ if [[ "$MODE" == "--remote" || "$MODE" == "remote" ]]; then
 	# Execute remote wrapper and clean up temp env
 	# Pass NEW_IMAGE_DIGEST for deployment verification
 	# Change to remote directory before executing
-	ssh_cmd "cd '$REMOTE_DIR' && env -i ENV_FILE='$REMOTE_ENV' NEW_IMAGE_DIGEST='${NEW_IMAGE_DIGEST:-}' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"
+	ssh_cmd "cd '$REMOTE_DIR' && env -i ENV_FILE='$REMOTE_ENV' NEW_IMAGE_DIGEST='${NEW_IMAGE_DIGEST:-}' ENVIRONMENT='$ENVIRONMENT' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"
 
 	echo -e "\n🚀✅ Remote stack up via docker-compose ✅🚀\n"
 else
 	# ── Local path ───────────────────────────────────────────────────────────
+	export ENVIRONMENT="$ENVIRONMENT"
 	exec ./docker_run_with_doppler.sh
 fi
 

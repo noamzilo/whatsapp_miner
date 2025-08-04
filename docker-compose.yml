@@ -41,6 +41,6 @@ services:
     depends_on:
       - redis
     entrypoint: ["/entrypoint_whatsapp_miner.sh"]
-
 volumes:
   redis_data:
+

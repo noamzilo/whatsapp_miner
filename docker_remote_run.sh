@@ -5,6 +5,7 @@
 set -euo pipefail
 
 : "${ENV_FILE:?}"  # passed in by docker_run.sh --remote
+: "${ENVIRONMENT:-dev}"  # passed in by docker_run.sh --remote
 
 # ── Load every secret from the Doppler .env file ───────────────────────────
 set -a
@@ -25,6 +26,11 @@ export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
 if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
     export NEW_IMAGE_DIGEST
 fi
+
+# Pass ENVIRONMENT to docker_run_core.sh
+export ENVIRONMENT
+
+echo "🌍 Environment: $ENVIRONMENT"
 
 ./docker_run_core.sh
 

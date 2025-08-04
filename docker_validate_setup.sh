@@ -1,10 +1,34 @@
 #!/usr/bin/env bash
 # docker_validate_setup.sh
 # Validates that all deployment prerequisites are met
+# Usage: ./docker_validate_setup.sh [--env dev|prd]
 
 set -euo pipefail
 
-echo "🧪 Validating deployment setup..."
+# Parse arguments
+ENVIRONMENT="dev"  # Default to dev
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env)
+            ENVIRONMENT="$2"
+            shift 2
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: $0 [--env dev|prd]"
+            exit 1
+            ;;
+    esac
+done
+
+# Validate environment
+if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prd" ]]; then
+    echo "❌ Error: Invalid environment '$ENVIRONMENT'. Must be dev or prd"
+    exit 1
+fi
+
+echo "🧪 Validating deployment setup for environment: $ENVIRONMENT..."
 
 # Test 1: Check if all required scripts exist
 echo "📋 Checking required scripts..."
@@ -89,38 +113,33 @@ else
     exit 1
 fi
 
-# Test 7: Check if Redis queue infrastructure exists
-echo "🔌 Checking Redis queue infrastructure..."
-if [[ -f "src/message_queue/redis_streams_queue.py" ]]; then
-    echo "   ✅ Redis Streams queue module exists"
+# Test 7: Check if database classifier module exists
+echo "🔌 Checking database classifier infrastructure..."
+if [[ -f "src/message_classification/classify_new_messages.py" ]]; then
+    echo "   ✅ Database classifier module exists"
 else
-    echo "   ❌ Redis Streams queue module missing"
+    echo "   ❌ Database classifier module missing"
     exit 1
 fi
 
-if [[ -f "src/message_classification/classify_messages_from_queue.py" ]]; then
-    echo "   ✅ Queue classifier module exists"
-else
-    echo "   ❌ Queue classifier module missing"
-    exit 1
-fi
-
-# Test 8: Check if database connection works (if Doppler is available)
-echo "🔌 Testing database connections..."
+# Test 8: Check if database connection works for the specified environment (if Doppler is available)
+echo "🔌 Testing database connection for environment: $ENVIRONMENT..."
 if command -v doppler &> /dev/null; then
-    # Test dev database
-    if doppler run --project whatsapp_miner_backend --config dev_personal -- poetry run alembic current &> /dev/null; then
-        echo "   ✅ Dev database connection works"
-    else
-        echo "   ❌ Dev database connection failed"
-        exit 1
-    fi
+    # Map environment to Doppler config
+    case "$ENVIRONMENT" in
+        "dev")
+            DOPPLER_CONFIG="dev_personal"
+            ;;
+        "prd")
+            DOPPLER_CONFIG="prd"
+            ;;
+    esac
     
-    # Test production database
-    if doppler run --project whatsapp_miner_backend --config prd -- poetry run alembic current &> /dev/null; then
-        echo "   ✅ Production database connection works"
+    # Test database connection for the specified environment
+    if doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- poetry run alembic current &> /dev/null; then
+        echo "   ✅ $ENVIRONMENT database connection works"
     else
-        echo "   ❌ Production database connection failed"
+        echo "   ❌ $ENVIRONMENT database connection failed"
         exit 1
     fi
 else
@@ -128,11 +147,11 @@ else
 fi
 
 echo ""
-echo "🎉 All deployment setup validation passed!"
+echo "🎉 All deployment setup validation passed for environment: $ENVIRONMENT!"
 echo ""
 echo "📚 Usage:"
-echo "   Local deployment: ./docker_deploy_with_doppler.sh"
-echo "   Local run only:   ./docker_run.sh"
-echo "   Remote deployment: ./docker_run.sh --remote"
-echo "   Run migrations:   ./run_migrations.sh --env dev|prd"
+echo "   Local deployment: ./docker_deploy_with_doppler.sh --env $ENVIRONMENT"
+echo "   Local run only:   ./docker_run.sh --env $ENVIRONMENT"
+echo "   Remote deployment: ./docker_run.sh --env $ENVIRONMENT --remote"
+echo "   Run migrations:   ./run_migrations.sh --env $ENVIRONMENT"
 echo "" 
