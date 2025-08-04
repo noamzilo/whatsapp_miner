@@ -34,9 +34,9 @@ if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
     
     # Get current running container image digest
     CURRENT_DIGEST=""
-    if docker compose --env-file "$ENV_FILE" ps -q | grep -q .; then
+    if ENV_FILE="$ENV_FILE" docker compose ps -q | grep -q .; then
         # Get the image digest of the first running container
-        FIRST_CONTAINER="$(docker compose --env-file "$ENV_FILE" ps -q | head -1)"
+        FIRST_CONTAINER="$(ENV_FILE="$ENV_FILE" docker compose ps -q | head -1)"
         if [[ -n "$FIRST_CONTAINER" ]]; then
             CONTAINER_IMAGE="$(docker inspect --format '{{.Image}}' "$FIRST_CONTAINER" 2>/dev/null || echo "")"
             if [[ -n "$CONTAINER_IMAGE" ]]; then
@@ -67,7 +67,7 @@ if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
     
     # Debug: show what containers are currently running
     echo "   📋 Current containers:"
-    docker compose --env-file "$ENV_FILE" ps --format "table {{.Name}}\t{{.Image}}\t{{.Status}}" || true
+    ENV_FILE="$ENV_FILE" docker compose ps --format "table {{.Name}}\t{{.Image}}\t{{.Status}}" || true
 else
     echo "   ⚠️  No NEW_IMAGE_DIGEST provided - forcing restart for safety"
     NEED_RESTART=true
@@ -75,29 +75,41 @@ fi
 
 # 3│Pull latest images (always do this)
 echo "📥 Pulling latest images..."
-docker compose --env-file "$ENV_FILE" pull $COMPOSE_SVCS || true
+if [[ -n "$COMPOSE_SVCS" ]]; then
+    ENV_FILE="$ENV_FILE" docker compose pull $COMPOSE_SVCS || true
+else
+    ENV_FILE="$ENV_FILE" docker compose pull || true
+fi
 
 # 4│Start/restart services based on need
 if [[ "$NEED_RESTART" == "true" ]]; then
     echo "🛑 Stopping existing containers for restart..."
-    docker compose --env-file "$ENV_FILE" down --remove-orphans || true
+    ENV_FILE="$ENV_FILE" docker compose down --remove-orphans || true
     
     echo "🚀 Starting services with new image..."
-    docker compose --env-file "$ENV_FILE" up -d $COMPOSE_SVCS
+    if [[ -n "$COMPOSE_SVCS" ]]; then
+        ENV_FILE="$ENV_FILE" docker compose up -d $COMPOSE_SVCS
+    else
+        ENV_FILE="$ENV_FILE" docker compose up -d
+    fi
 else
     echo "🚀 Ensuring services are running (no restart needed)..."
-    docker compose --env-file "$ENV_FILE" up -d $COMPOSE_SVCS
+    if [[ -n "$COMPOSE_SVCS" ]]; then
+        ENV_FILE="$ENV_FILE" docker compose up -d $COMPOSE_SVCS
+    else
+        ENV_FILE="$ENV_FILE" docker compose up -d
+    fi
 fi
 
 # 5│Verify something actually started (early catch)
 echo "🔍 Checking container status..."
-RUNNING_CONTAINERS="$(docker compose ps -q | xargs -r docker inspect --format '{{.State.Status}}' 2>/dev/null | grep -c running || true)"
+RUNNING_CONTAINERS="$(ENV_FILE="$ENV_FILE" docker compose ps -q | xargs -r docker inspect --format '{{.State.Status}}' 2>/dev/null | grep -c running || true)"
 if [[ "$RUNNING_CONTAINERS" -eq 0 ]]; then
 	echo "❌ docker compose up -d did not start any running containers."
 	echo "📋 Container status:"
-	docker compose ps || true
+	ENV_FILE="$ENV_FILE" docker compose ps || true
 	echo "📋 Recent logs:"
-	docker compose logs --tail 50 || true
+	ENV_FILE="$ENV_FILE" docker compose logs --tail 50 || true
 	exit 1
 fi
 
@@ -105,12 +117,12 @@ echo "✅ Found $RUNNING_CONTAINERS running container(s)"
 
 # 6│Health-check each started container
 if [[ -z "$COMPOSE_SVCS" ]]; then
-	COMPOSE_SVCS="$(docker compose ps --services)"
+	COMPOSE_SVCS="$(ENV_FILE="$ENV_FILE" docker compose ps --services)"
 fi
 
 echo "🏥 Health-checking services: $COMPOSE_SVCS"
 for SVC in $COMPOSE_SVCS; do
-	CID="$(docker compose ps -q "$SVC")"
+	CID="$(ENV_FILE="$ENV_FILE" docker compose ps -q "$SVC")"
 	[[ -z "$CID" ]] && continue
 	
 	echo "   Checking $SVC (container: $CID)..."
