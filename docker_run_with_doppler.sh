@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+# Source utility functions
+source "$(dirname "$0")/docker_utils.sh"
+
 cd "$(dirname "$0")"
 
 # ── 1. Re-exec inside Doppler if not already ────────────────────────────────
@@ -12,11 +15,8 @@ if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
 	exec doppler run --preserve-env -- "$0" "$@"
 fi
 
-# Strip quotes from Doppler variables if present
-DOPPLER_PROJECT="${DOPPLER_PROJECT%\"}"
-DOPPLER_PROJECT="${DOPPLER_PROJECT#\"}"
-DOPPLER_CONFIG="${DOPPLER_CONFIG%\"}"
-DOPPLER_CONFIG="${DOPPLER_CONFIG#\"}"
+# Unquote Doppler variables
+unquote_doppler_vars
 
 echo "✅ Running in Doppler context: $DOPPLER_PROJECT/$DOPPLER_CONFIG"
 echo "🌍 Environment: ${ENVIRONMENT:-dev}"
@@ -37,27 +37,7 @@ for v in "${required_vars[@]}"; do
 	fi
 done
 
-# Strip quotes from Docker image name if present
-DOCKER_IMAGE_NAME_WHATSAPP_MINER="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
-DOCKER_IMAGE_NAME_WHATSAPP_MINER="${DOCKER_IMAGE_NAME_WHATSAPP_MINER#\"}"
-
-# Strip quotes from other Docker variables if present
-DOCKER_CONTAINER_NAME_WHATSAPP_MINER="${DOCKER_CONTAINER_NAME_WHATSAPP_MINER%\"}"
-DOCKER_CONTAINER_NAME_WHATSAPP_MINER="${DOCKER_CONTAINER_NAME_WHATSAPP_MINER#\"}"
-DOCKER_COMPOSE_SERVICES="${DOCKER_COMPOSE_SERVICES%\"}"
-DOCKER_COMPOSE_SERVICES="${DOCKER_COMPOSE_SERVICES#\"}"
-
-# ── 3. Map Doppler creds → AWS standard names (strip quotes if present) ─────
-# Strip quotes from region if present
-AWS_EC2_REGION="${AWS_EC2_REGION%\"}"
-AWS_EC2_REGION="${AWS_EC2_REGION#\"}"
-
-# Strip quotes from AWS credentials if present
-AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID="${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID%\"}"
-AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID="${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID#\"}"
-AWS_IAM_WHATSAPP_MINER_ACCESS_KEY="${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY%\"}"
-AWS_IAM_WHATSAPP_MINER_ACCESS_KEY="${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY#\"}"
-
+# ── 3. Map Doppler creds → AWS standard names ───────────────────────────────
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
@@ -78,9 +58,6 @@ echo "✅ AWS credentials are valid"
 
 # ── 5. Prepare ECR login vars ───────────────────────────────────────────────
 IMAGE_NAME="$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
-# Strip quotes from image name if present
-IMAGE_NAME="${IMAGE_NAME%\"}"
-IMAGE_NAME="${IMAGE_NAME#\"}"
 AWS_ECR_REGISTRY="${IMAGE_NAME%/*}"
 echo "📦 ECR Registry: $AWS_ECR_REGISTRY"
 

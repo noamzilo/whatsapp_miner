@@ -5,6 +5,11 @@
 
 set -euo pipefail
 
+# Source utility functions
+source "$(dirname "$0")/docker_utils.sh"
+
+
+
 # Parse arguments
 ENVIRONMENT="dev"  # Default to dev
 
@@ -36,6 +41,9 @@ if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
 	exec doppler run --preserve-env -- "$0" "$@"
 fi
 
+# ── Unquote Doppler variables ───────────────────────────────────────────────
+unquote_doppler_vars
+
 # ── Map AWS credentials ──────────────────────────────────────────────────────
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
@@ -47,6 +55,7 @@ echo "🔍 Validating deployment setup..."
 
 # ── Build and push image ────────────────────────────────────────────────────
 echo "🔨 Building and pushing image..."
+
 ./docker_build.sh --env "$ENVIRONMENT" --push
 
 # ── Get image digest for verification ───────────────────────────────────────

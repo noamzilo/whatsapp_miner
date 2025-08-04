@@ -36,13 +36,19 @@ echo "🌍 Environment: $ENVIRONMENT"
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 
+# Map region variable (works for both Doppler and GitHub Actions)
+export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$AWS_EC2_REGION}"
+
 # Validate deployment setup before starting
 echo "🔍 Validating deployment setup..."
-./docker_validate_setup.sh
+./docker_validate_setup.sh --env "$ENVIRONMENT"
+
+# Get ECR registry from cleaned image name
+ECR_REGISTRY="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
 
 # Login to ECR
 aws ecr get-login-password --region "$AWS_EC2_REGION" \
-	| docker login --username AWS --password-stdin "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
+	| docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
 # Build and push image
 echo "🔨 Building and pushing image..."
@@ -71,7 +77,7 @@ fi
 
 # Show final status
 echo "📊 Final deployment status:"
-./docker_show_status.sh
+./docker_show_status.sh --env "$ENVIRONMENT"
 
 echo ""
 echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"
