@@ -10,9 +10,19 @@ run migrations
 doppler run -- poetry run alembic upgrade head
 doppler run --project whatsapp_miner_backend --config dev_personal -- poetry run alembic upgrade head
 
+# Database migration (dumps prd, copies dev to prd, runs migrations)
+./src/scripts/migrate_db.sh --src dev --dst prd
+./src/scripts/migrate_db.sh --src dev_personal --dst prd
+
+# Drop all tables in destination database before migration (use with caution)
+./src/scripts/migrate_db.sh --src dev --dst prd --clear
+
+# Skip backup and clear destination (use with extreme caution)
+./src/scripts/migrate_db.sh --src dev --dst prd --clear --no-backup
+
+# Recommended: Clear destination and migrate (most reliable)
+./src/scripts/migrate_db.sh --src dev_personal --dst prd --clear
+
 
 generate env file (for pycharm)
 doppler secrets download --project whatsapp_miner_backend --config dev --no-file --format env > /home/noams/src/whatsapp_miner/.env.doppler
-
-reset leads db
-doppler run --project whatsapp_miner_backend --config dev_personal -- python ./src/scripts/reset_lead_status_in_db.py
