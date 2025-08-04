@@ -1,7 +1,7 @@
 from logging.config import fileConfig
 import os
 
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, text
 from sqlalchemy import pool
 
 from alembic import context
@@ -59,7 +59,7 @@ def run_migrations_online() -> None:
 
 	with connectable.connect() as connection:
 		# Set search path to public schema
-		connection.execute("SET search_path TO public;")
+		connection.execute(text("SET search_path TO public;"))
 		
 		context.configure(
 			connection=connection,

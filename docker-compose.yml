@@ -1,16 +1,46 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: whatsapp_miner_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
   whatsapp_sniffer:
     image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
     container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_sniffer
     restart: unless-stopped
     env_file:
       - ${ENV_FILE}
+    depends_on:
+      - redis
     command: poetry run python src/receive_notification.py
 
-  message_classifier:
+  message_classifier_dev:
     image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
-    container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_classifier
+    container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_classifier_dev
     restart: unless-stopped
     env_file:
-      - ${ENV_FILE}
-    entrypoint: ["/entrypoint_message_classifier.sh"]
+      - ${ENV_FILE_DEV}
+    environment:
+      - DATABASE_ENV=dev
+    depends_on:
+      - redis
+    entrypoint: ["/entrypoint_whatsapp_miner.sh"]
+
+  message_classifier_prd:
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
+    container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_classifier_prd
+    restart: unless-stopped
+    env_file:
+      - ${ENV_FILE_PRD}
+    environment:
+      - DATABASE_ENV=prd
+    depends_on:
+      - redis
+    entrypoint: ["/entrypoint_whatsapp_miner.sh"]
+
+volumes:
+  redis_data:

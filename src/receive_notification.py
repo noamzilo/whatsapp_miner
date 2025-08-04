@@ -9,6 +9,7 @@ from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.db import get_message_by_message_id, get_user_by_whatsapp_id, get_group_by_whatsapp_id
+from src.message_queue.redis_streams_queue import RedisMessageQueue
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from sqlalchemy.engine import Engine
@@ -21,6 +22,9 @@ logger.info("Mensaje de prueba")
 greenAPI = API.GreenAPI(
 	instance_id, api_token
 )
+
+# Initialize queue for publishing messages
+message_queue = RedisMessageQueue()
 
 def main():
 	print(f"polling started   ")
@@ -124,11 +128,29 @@ def incoming_message_received(body: dict) -> None:
 		session.commit()
 		print(f"[OK] Inserted group message {message_id} from user {user_id} in group {group_id}")
 
+		# Publish message to Redis Streams for multi-environment processing
+		queue_message_data = {
+			'id': message_id,
+			'raw_text': message_text,
+			'sender_id': user_id,
+			'group_id': group_id,
+			'timestamp': timestamp.isoformat(),
+			'message_type': message_type,
+			'is_forwarded': is_forwarded,
+			'user_name': user_name,
+			'group_name': group_name
+		}
+		
+		# Publish to Redis Streams (fire-and-forget)
+		message_queue.publish_message(queue_message_data)
+		logger.info(f"📤 Published message {message_id} to queue for multi-environment processing")
+
 	except IntegrityError:
 		session.rollback()
 		print(f"[Error] Integrity issue on message {message_id}")
 	except Exception as e:
 		session.rollback()
+		logger.error(f"❌ Failed to process message: {e}")
 		print(f"[Error] Failed to insert message: {e}")
 	finally:
 		session.close()
