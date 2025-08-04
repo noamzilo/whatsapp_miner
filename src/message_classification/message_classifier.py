@@ -56,6 +56,9 @@ class MessageClassifier:
         # Initialize output parser for structured JSON responses
         self.output_parser = PydanticOutputParser(pydantic_object=ClassificationResult)
         
+        # Store configuration
+        self.run_every_seconds = message_classifier_run_every_seconds
+        
     def _get_existing_categories(self, session) -> List[str]:
         """Get all existing category names from database."""
         from src.db.models.lead_category import LeadCategory
@@ -369,7 +372,10 @@ Respond with ONLY a valid JSON object matching the structure above."""
     
     def classify_messages(self, messages: List[Dict[str, Any]], session=None) -> List[Dict[str, Any]]:
         """Classify a list of messages and return results with database operations to be performed."""
-        logger.info(f"🔍 Starting classification of {len(messages)} messages")
+        logger.info("=" * 80)
+        logger.info(f"🚀 STARTING BATCH CLASSIFICATION")
+        logger.info(f"📊 Batch Size: {len(messages)} messages")
+        logger.info("=" * 80)
         
         results = []
         
@@ -379,7 +385,11 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 message_id = message_data['id']
                 message_text = message_data['raw_text']
                 
-                logger.info(f"🔍 Classifying message {i}/{len(messages)} (ID: {message_id}): '{message_text[:50]}...'")
+                # Clear message separator
+                logger.info("")
+                logger.info("_" * 60)
+                logger.info(f"📝 MESSAGE {i}/{len(messages)} (ID: {message_id})")
+                logger.info(f"📄 Text: {message_text[:100]}{'...' if len(message_text) > 100 else ''}")
                 
                 # Classify the message with session for database-aware validation
                 classification_result = self._classify_message(message_text, session)
@@ -387,19 +397,18 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 # Calculate processing time
                 processing_time = (datetime.now() - message_start_time).total_seconds()
                 
-                # Enhanced logging with detailed information
-                logger.info(f"   ⏱️  Processing time: {processing_time:.2f}s")
-                logger.info(f"   📊 Classification: {'🎯 LEAD' if classification_result.is_lead else '📝 NOT LEAD'}")
+                # Clean, single-line logging for each data point
+                logger.info(f"⏱️  Time: {processing_time:.2f}s")
+                logger.info(f"🎯 Result: {'LEAD' if classification_result.is_lead else 'NOT LEAD'}")
                 
                 if classification_result.is_lead:
-                    logger.info(f"   🎯 Lead Category: {classification_result.lead_category}")
-                    logger.info(f"   📝 Lead Description: {classification_result.lead_description}")
-                    logger.info(f"   💼 Business Type: {classification_result.lead_category}")
+                    logger.info(f"📂 Category: {classification_result.lead_category}")
+                    logger.info(f"📝 Description: {classification_result.lead_description or 'None'}")
                 else:
-                    logger.info(f"   📝 Message Type: General conversation")
+                    logger.info(f"📝 Type: General conversation")
                 
-                logger.info(f"   💭 Reasoning: {classification_result.reasoning}")
-                logger.info(f"   📏 Message Length: {len(message_text)} characters")
+                logger.info(f"💭 Reasoning: {classification_result.reasoning[:150]}{'...' if len(classification_result.reasoning) > 150 else ''}")
+                logger.info(f"📏 Length: {len(message_text)} chars")
                 
                 # Prepare result for database operations
                 result = {
@@ -411,11 +420,11 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 
                 results.append(result)
                 
-                logger.info(f"   ✅ Successfully classified message {message_id} in {processing_time:.2f}s")
+                logger.info(f"✅ Status: Success")
                 
             except Exception as e:
                 processing_time = (datetime.now() - message_start_time).total_seconds()
-                logger.error(f"   ❌ Error processing message {message_data.get('id', 'unknown')} after {processing_time:.2f}s: {e}")
+                logger.error(f"❌ Status: Error - {e}")
                 results.append({
                     'message_id': message_data.get('id', 'unknown'),
                     'classification_result': None,
@@ -425,15 +434,20 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 })
                 continue
         
+        # Batch completion summary
         total_processing_time = sum(r.get('processing_time_seconds', 0) for r in results)
         successful_classifications = sum(1 for r in results if r['success'])
         leads_detected = sum(1 for r in results if r['success'] and r['classification_result'].is_lead)
         
-        logger.info(f"✅ Completed classification of {len(messages)} messages:")
-        logger.info(f"   📊 Successfully classified: {successful_classifications}/{len(messages)}")
-        logger.info(f"   🎯 Leads detected: {leads_detected}")
-        logger.info(f"   ⏱️  Total processing time: {total_processing_time:.2f}s")
-        logger.info(f"   ⚡ Average processing time: {total_processing_time/len(messages):.2f}s per message")
+        logger.info("")
+        logger.info("=" * 80)
+        logger.info(f"🏁 BATCH COMPLETED")
+        logger.info(f"📊 Processed: {successful_classifications}/{len(messages)} messages")
+        logger.info(f"🎯 Leads: {leads_detected}")
+        logger.info(f"⏱️  Total Time: {total_processing_time:.2f}s")
+        logger.info(f"⚡ Avg Time: {total_processing_time/len(messages):.2f}s per message")
+        logger.info("=" * 80)
+        logger.info("")
         
         return results
     
@@ -445,7 +459,10 @@ Respond with ONLY a valid JSON object matching the structure above."""
             get_classification_prompt, match_with_existing_categories
         )
         
-        logger.info(f"🗄️  Starting database processing for {len(classification_results)} classification results")
+        logger.info("")
+        logger.info("🗄️  DATABASE PROCESSING")
+        logger.info(f"📊 Processing {len(classification_results)} results")
+        
         processed_count = 0
         leads_created = 0
         categories_created = 0
@@ -459,7 +476,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
             classification_result = result['classification_result']
             processing_time = result.get('processing_time_seconds', 0)
             
-            logger.info(f"🗄️  Processing database operations for message {message_id} (LLM time: {processing_time:.2f}s)")
+            logger.info(f"🗄️  Message {message_id}: Processing DB operations (LLM: {processing_time:.2f}s)")
             
             try:
                 # Get or create intent type
@@ -491,10 +508,12 @@ Respond with ONLY a valid JSON object matching the structure above."""
                         # Lead but no category - skip this lead for now
                         logger.warning(f"   ⚠️  Lead detected but no category specified, skipping message {message_id}")
                         continue
+                else:
+                    # For non-leads, don't create any classification record
+                    logger.debug(f"   📝 Non-lead message {message_id} - no classification record needed")
                 
-                # Only create classification record for leads
+                # Create classification record ONLY for leads
                 if classification_result.is_lead:
-                    # Create classification record for leads
                     classification_id = create_classification_record(
                         session=session,
                         message_id=message_id,
@@ -505,45 +524,77 @@ Respond with ONLY a valid JSON object matching the structure above."""
                     )
                     logger.info(f"   📊 Created classification record (ID: {classification_id})")
                     
-                    # Create lead record
+                    # Create lead record ONLY for leads
                     from src.db.models.whatsapp_message import WhatsAppMessage
                     message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
-                    lead_id = create_lead_record(
-                        session=session,
-                        classification_id=classification_id,
-                        user_id=message.sender_id,
-                        group_id=message.group_id,
-                        lead_for=classification_result.lead_description or "Lead detected"
-                    )
-                    leads_created += 1
-                    logger.info(f"   🎯 Created lead record (ID: {lead_id}) for user {message.sender_id} in group {message.group_id}")
-                    logger.info(f"   📝 Lead description: {classification_result.lead_description}")
+                    
+                    if message:
+                        logger.info(f"   🎯 Creating lead record for message {message_id} (sender: {message.sender_id}, group: {message.group_id})")
+                        lead_id = create_lead_record(
+                            session=session,
+                            classification_id=classification_id,
+                            user_id=message.sender_id,
+                            group_id=message.group_id,
+                            lead_for=classification_result.lead_description or "Lead detected",
+                            message_id=message_id,
+                            lead_category_id=lead_category_id
+                        )
+                        leads_created += 1
+                        logger.info(f"   🎯 SUCCESS: Created lead record (ID: {lead_id}) for user {message.sender_id} in group {message.group_id}")
+                        logger.info(f"   📝 Lead description: {classification_result.lead_description}")
+                        
+                        # Verify the lead was actually created
+                        from src.db.models.detected_lead import DetectedLead
+                        created_lead = session.query(DetectedLead).filter_by(id=lead_id).first()
+                        if created_lead:
+                            logger.info(f"   ✅ VERIFIED: Lead record {lead_id} exists in database")
+                        else:
+                            logger.error(f"   ❌ ERROR: Lead record {lead_id} was not found in database after creation")
+                    else:
+                        logger.error(f"   ❌ Could not find message {message_id} for lead creation")
+                        continue
                 else:
-                    # For non-leads, just mark as processed without creating classification record
-                    logger.debug(f"   📝 Non-lead message {message_id} - marking as processed without classification record")
+                    logger.debug(f"   📝 Non-lead message {message_id} - no lead record created")
                 
-                # Mark message as processed
+                # Mark message as processed (for both leads and non-leads)
                 mark_message_as_processed(session, message_id)
                 logger.debug(f"   ✅ Marked message {message_id} as processed")
+                
+                # Commit the transaction for this message
+                session.commit()
+                logger.debug(f"   💾 Committed database changes for message {message_id}")
                 
                 processed_count += 1
                 logger.info(f"   ✅ Successfully processed message {message_id} in database")
                 
             except Exception as e:
                 logger.error(f"   ❌ Error processing message {message_id} in database: {e}")
+                session.rollback()
+                logger.debug(f"   🔄 Rolled back database changes for message {message_id}")
                 continue
         
-        logger.info(f"🗄️  Completed database processing:")
-        logger.info(f"   📊 Processed messages: {processed_count}/{len(classification_results)}")
-        logger.info(f"   🎯 Leads created: {leads_created}")
-        logger.info(f"   🆕 Categories created: {categories_created}")
+        logger.info("")
+        logger.info("🗄️  DATABASE PROCESSING COMPLETED")
+        logger.info(f"📊 Processed: {processed_count}/{len(classification_results)} messages")
+        logger.info(f"🎯 Leads: {leads_created}")
+        logger.info(f"🆕 Categories: {categories_created}")
+        
+        # Final verification - count actual leads in database
+        try:
+            from src.db.models.detected_lead import DetectedLead
+            total_leads_in_db = session.query(DetectedLead).count()
+            logger.info(f"🗄️  Total leads in database: {total_leads_in_db}")
+        except Exception as e:
+            logger.warning(f"Could not verify total leads in database: {e}")
+        
+        logger.info("")
         
         return processed_count
     
     def run_continuous(self):
         """Run the classifier in a continuous loop."""
         logger.info("🚀 Starting Message Classifier Service")
-        logger.info(f"⏰ Running every {message_classifier_run_every_seconds} seconds")
+        logger.info(f"⏰ Running every {self.run_every_seconds} seconds")
         
         iteration = 0
         while True:
@@ -560,7 +611,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 logger.error(f"❌ Error in classification iteration: {e}")
             
             # Sleep for the configured interval
-            time.sleep(message_classifier_run_every_seconds)
+            time.sleep(self.run_every_seconds)
 
 
 if __name__ == "__main__":

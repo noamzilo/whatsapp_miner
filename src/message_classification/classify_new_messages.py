@@ -32,6 +32,9 @@ from src.db.db import (
     create_lead_record, get_or_create_lead_category, get_or_create_intent_type,
     get_classification_prompt, match_with_existing_categories
 )
+from src.env_var_injection import message_classifier_run_every_seconds
+from src.db.models.whatsapp_group import WhatsAppGroup
+from src.db.models.whatsapp_user import WhatsAppUser
 
 # Setup logging
 setup_logger(logs_root)
@@ -44,6 +47,7 @@ class MessageClassifierService:
     def __init__(self):
         """Initialize the message classifier service."""
         self.classifier = MessageClassifier()
+        self.run_every_seconds = message_classifier_run_every_seconds
         logger.info("✅ Initialized MessageClassifierService")
     
     def _create_detailed_message_log(self, message_data: Dict[str, Any], classification_result: Any, 
@@ -57,19 +61,43 @@ class MessageClassifierService:
             group_id = message_data.get('group_id')
             timestamp = message_data.get('timestamp')
             
+            # Get group name and sender name for better logging
+            group_name = "Unknown Group"
+            sender_name = "Unknown User"
+            
+            try:
+                with get_db_session() as session:                    
+                    if group_id:
+                        group = session.query(WhatsAppGroup).filter_by(id=group_id).first()
+                        if group:
+                            group_name = group.group_name or f"Group {group_id}"
+                    
+                    if sender_id:
+                        user = session.query(WhatsAppUser).filter_by(id=sender_id).first()
+                        if user:
+                            sender_name = user.display_name or f"User {sender_id}"
+            except Exception as e:
+                logger.debug(f"Could not fetch group/user names: {e}")
+            
             # Extract classification details
             is_lead = classification_result.is_lead
             lead_category = classification_result.lead_category
             lead_description = classification_result.lead_description
             reasoning = classification_result.reasoning
             
+            # Format timestamp for display
+            message_time_str = timestamp.strftime("%Y-%m-%d %H:%M:%S") if timestamp else "Unknown"
+            
             # Create detailed log entry
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "message_id": message_id,
                 "sender_id": sender_id,
+                "sender_name": sender_name,
                 "group_id": group_id,
+                "group_name": group_name,
                 "message_timestamp": timestamp.isoformat() if timestamp else None,
+                "message_time_display": message_time_str,
                 "message_text": message_text,
                 "message_length": len(message_text),
                 "classification": {
@@ -81,14 +109,16 @@ class MessageClassifierService:
                 "processing_stats": processing_stats
             }
             
-            # Log the detailed entry
+            # Log the detailed entry with full text (no truncation)
             logger.info(f"📋 DETAILED CLASSIFICATION LOG: {json.dumps(log_entry, indent=2, default=str)}")
             
-            # Also log a concise summary
+            # Also log a concise summary with group name and time
             if is_lead:
-                logger.info(f"🎯 LEAD DETECTED - Message {message_id}: Category='{lead_category}', Description='{lead_description}'")
+                logger.info(f"🎯 LEAD DETECTED - Message {message_id} | Group: {group_name} | Time: {message_time_str} | Category: '{lead_category}' | Description: '{lead_description}'")
+                logger.info(f"📝 FULL MESSAGE TEXT: {message_text}")
             else:
-                logger.info(f"📝 NON-LEAD - Message {message_id}: {reasoning[:100]}...")
+                logger.info(f"📝 NON-LEAD - Message {message_id} | Group: {group_name} | Time: {message_time_str} | Reasoning: {reasoning}")
+                logger.info(f"📝 FULL MESSAGE TEXT: {message_text}")
                 
         except Exception as e:
             logger.error(f"❌ Error creating detailed log for message {message_data.get('id', 'unknown')}: {e}")
@@ -97,12 +127,17 @@ class MessageClassifierService:
         """Get unclassified messages from the database."""
         try:
             unclassified_messages = get_unclassified_messages(session)
+            total_unclassified = len(unclassified_messages)
+            
+            logger.info(f"📊 Total unclassified messages in DB: {total_unclassified}")
             
             # Convert to dictionary format for classifier and filter short messages
             messages = []
+            skipped_short = 0
             for msg in unclassified_messages[:limit]:
                 # Skip messages under 8 characters
                 if len(msg.raw_text.strip()) < 8:
+                    skipped_short += 1
                     logger.debug(f"⏭️  Skipping short message {msg.id}: '{msg.raw_text[:20]}...' (length: {len(msg.raw_text)})")
                     continue
                 
@@ -114,7 +149,7 @@ class MessageClassifierService:
                     'timestamp': msg.timestamp
                 })
             
-            logger.info(f"📖 Found {len(messages)} unclassified messages (after filtering short messages)")
+            logger.info(f"📖 Processing {len(messages)} messages (skipped {skipped_short} short messages)")
             return messages
             
         except Exception as e:
@@ -193,7 +228,7 @@ class MessageClassifierService:
     def run_continuous(self):
         """Run the classifier in a continuous loop."""
         logger.info("🚀 Starting Message Classifier Service")
-        logger.info(f"⏰ Running every {self.classifier.message_classifier_run_every_seconds} seconds")
+        logger.info(f"⏰ Running every {self.run_every_seconds} seconds")
         
         iteration = 0
         total_stats = {
@@ -207,7 +242,10 @@ class MessageClassifierService:
             iteration += 1
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            logger.info(f"🔄 Iteration {iteration} - {current_time}")
+            logger.info("")
+            logger.info("🔄" + "=" * 78)
+            logger.info(f"🔄 ITERATION {iteration} - {current_time}")
+            logger.info("🔄" + "=" * 78)
             
             try:
                 # Run classification iteration
@@ -221,17 +259,20 @@ class MessageClassifierService:
                 total_stats['total_errors'] += iteration_stats['errors']
                 
                 # Log iteration summary
-                logger.info(f"📊 Iteration Summary: "
-                          f"Processed {iteration_stats['messages_processed']} messages, "
-                          f"Detected {iteration_stats['leads_detected']} leads, "
-                          f"Duration: {iteration_stats['duration_seconds']:.2f}s")
+                logger.info("")
+                logger.info(f"📊 ITERATION SUMMARY:")
+                logger.info(f"   📝 Messages: {iteration_stats['messages_processed']}")
+                logger.info(f"   🎯 Leads: {iteration_stats['leads_detected']}")
+                logger.info(f"   ⏱️  Duration: {iteration_stats['duration_seconds']:.2f}s")
+                logger.info(f"   ❌ Errors: {iteration_stats['errors']}")
                 
                 # Log cumulative stats every 10 iterations
                 if iteration % 10 == 0:
-                    logger.info(f"📈 Cumulative Stats: "
-                              f"Total processed: {total_stats['total_messages_processed']}, "
-                              f"Total leads: {total_stats['total_leads_detected']}, "
-                              f"Total errors: {total_stats['total_errors']}")
+                    logger.info("")
+                    logger.info(f"📈 CUMULATIVE STATS (after {iteration} iterations):")
+                    logger.info(f"   📝 Total Processed: {total_stats['total_messages_processed']}")
+                    logger.info(f"   🎯 Total Leads: {total_stats['total_leads_detected']}")
+                    logger.info(f"   ❌ Total Errors: {total_stats['total_errors']}")
                 
             except KeyboardInterrupt:
                 logger.info("🛑 Message Classifier Service stopped by user")
@@ -242,7 +283,7 @@ class MessageClassifierService:
                 # Continue running despite errors
             
             # Sleep for the configured interval
-            time.sleep(self.classifier.message_classifier_run_every_seconds)
+            time.sleep(self.run_every_seconds)
 
 
 def main():

@@ -153,7 +153,7 @@ def mark_message_as_processed(session, message_id: int) -> None:
     message = session.query(WhatsAppMessage).filter_by(id=message_id).first()
     if message:
         message.llm_processed = True
-        session.commit()
+        # Note: commit is handled by the calling function
 
 
 def create_classification_record(session, message_id: int, prompt_template_id: int,
@@ -174,13 +174,16 @@ def create_classification_record(session, message_id: int, prompt_template_id: i
 
 
 def create_lead_record(session, classification_id: int, user_id: int, 
-                      group_id: int, lead_for: str) -> int:
+                      group_id: int, lead_for: str, message_id: int = None, 
+                      lead_category_id: int = None) -> int:
     """Create a lead record."""
     lead = DetectedLead(
         classification_id=classification_id,
         user_id=user_id,
         group_id=group_id,
-        lead_for=lead_for
+        lead_for=lead_for,
+        message_id=message_id,
+        lead_category_id=lead_category_id
     )
     session.add(lead)
     session.flush()

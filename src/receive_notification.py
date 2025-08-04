@@ -4,7 +4,7 @@ from json import dumps
 from env_var_injection import instance_id, api_token
 from whatsapp_api_client_python import API
 from src.utils.log import get_logger, setup_logger
-from src.db.db import SessionLocal
+from src.db.db_interface import get_session_local
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.models.whatsapp_message import WhatsAppMessage
@@ -56,7 +56,7 @@ def get_notification_time(timestamp: int) -> str:
 
 
 def incoming_message_received(body: dict) -> None:
-	session = SessionLocal()
+	session = get_session_local()()
 
 	try:
 		message_id = body["idMessage"]
