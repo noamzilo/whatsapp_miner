@@ -19,6 +19,7 @@ The service will run continuously, checking for new messages every X seconds
 """
 import time
 import logging
+import json
 from datetime import datetime
 from typing import List, Dict, Any
 
@@ -44,6 +45,53 @@ class MessageClassifierService:
         """Initialize the message classifier service."""
         self.classifier = MessageClassifier()
         logger.info("✅ Initialized MessageClassifierService")
+    
+    def _create_detailed_message_log(self, message_data: Dict[str, Any], classification_result: Any, 
+                                   processing_stats: Dict[str, Any]) -> None:
+        """Create a detailed log entry for each classified message."""
+        try:
+            # Extract message details
+            message_id = message_data['id']
+            message_text = message_data['raw_text']
+            sender_id = message_data.get('sender_id')
+            group_id = message_data.get('group_id')
+            timestamp = message_data.get('timestamp')
+            
+            # Extract classification details
+            is_lead = classification_result.is_lead
+            lead_category = classification_result.lead_category
+            lead_description = classification_result.lead_description
+            reasoning = classification_result.reasoning
+            
+            # Create detailed log entry
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "message_id": message_id,
+                "sender_id": sender_id,
+                "group_id": group_id,
+                "message_timestamp": timestamp.isoformat() if timestamp else None,
+                "message_text": message_text,
+                "message_length": len(message_text),
+                "classification": {
+                    "is_lead": is_lead,
+                    "lead_category": lead_category,
+                    "lead_description": lead_description,
+                    "reasoning": reasoning
+                },
+                "processing_stats": processing_stats
+            }
+            
+            # Log the detailed entry
+            logger.info(f"📋 DETAILED CLASSIFICATION LOG: {json.dumps(log_entry, indent=2, default=str)}")
+            
+            # Also log a concise summary
+            if is_lead:
+                logger.info(f"🎯 LEAD DETECTED - Message {message_id}: Category='{lead_category}', Description='{lead_description}'")
+            else:
+                logger.info(f"📝 NON-LEAD - Message {message_id}: {reasoning[:100]}...")
+                
+        except Exception as e:
+            logger.error(f"❌ Error creating detailed log for message {message_data.get('id', 'unknown')}: {e}")
     
     def _get_unclassified_messages(self, session, limit: int = 50) -> List[Dict[str, Any]]:
         """Get unclassified messages from the database."""
@@ -103,16 +151,35 @@ class MessageClassifierService:
                 logger.info(f"🤖 Classifying {len(messages)} messages...")
                 classification_results = self.classifier.classify_messages(messages, session)
                 
+                # Create detailed logs for each classified message
+                for i, result in enumerate(classification_results):
+                    if result['success']:
+                        message_data = messages[i]  # Assuming same order
+                        classification_result = result['classification_result']
+                        
+                        # Create processing stats for this message
+                        processing_stats = {
+                            'iteration_number': iteration_stats.get('iteration_number', 0),
+                            'message_index': i + 1,
+                            'total_messages_in_batch': len(messages),
+                            'processing_timestamp': datetime.now().isoformat()
+                        }
+                        
+                        # Create detailed log for this message
+                        self._create_detailed_message_log(message_data, classification_result, processing_stats)
+                        
+                        # Update stats
+                        if classification_result.is_lead:
+                            iteration_stats['leads_detected'] += 1
+                    else:
+                        logger.error(f"❌ Failed to classify message {result.get('message_id', 'unknown')}: {result.get('error', 'Unknown error')}")
+                        iteration_stats['errors'] += 1
+                
                 # Process results
                 processed_count = self._process_classification_results(classification_results, session)
                 iteration_stats['messages_processed'] = processed_count
                 
-                # Count leads detected
-                leads_detected = sum(1 for result in classification_results 
-                                   if result['success'] and result['classification_result'].is_lead)
-                iteration_stats['leads_detected'] = leads_detected
-                
-                logger.info(f"✅ Processed {processed_count}/{len(messages)} messages, detected {leads_detected} leads")
+                logger.info(f"✅ Processed {processed_count}/{len(messages)} messages, detected {iteration_stats['leads_detected']} leads")
                 
         except Exception as e:
             logger.error(f"❌ Error in classification iteration: {e}")
@@ -145,6 +212,7 @@ class MessageClassifierService:
             try:
                 # Run classification iteration
                 iteration_stats = self._run_classification_iteration()
+                iteration_stats['iteration_number'] = iteration
                 
                 # Update total stats
                 total_stats['total_iterations'] += 1

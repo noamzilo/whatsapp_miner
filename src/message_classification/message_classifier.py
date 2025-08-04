@@ -374,43 +374,67 @@ Respond with ONLY a valid JSON object matching the structure above."""
         results = []
         
         for i, message_data in enumerate(messages, 1):
+            message_start_time = datetime.now()
             try:
                 message_id = message_data['id']
                 message_text = message_data['raw_text']
                 
-                logger.info(f"🔍 Classifying message {i}/{len(messages)}: '{message_text[:50]}...'")
+                logger.info(f"🔍 Classifying message {i}/{len(messages)} (ID: {message_id}): '{message_text[:50]}...'")
                 
                 # Classify the message with session for database-aware validation
                 classification_result = self._classify_message(message_text, session)
                 
-                logger.info(f"   📊 Result: {'LEAD' if classification_result.is_lead else 'NOT LEAD'}")
+                # Calculate processing time
+                processing_time = (datetime.now() - message_start_time).total_seconds()
+                
+                # Enhanced logging with detailed information
+                logger.info(f"   ⏱️  Processing time: {processing_time:.2f}s")
+                logger.info(f"   📊 Classification: {'🎯 LEAD' if classification_result.is_lead else '📝 NOT LEAD'}")
+                
                 if classification_result.is_lead:
-                    logger.info(f"   🎯 Category: {classification_result.lead_category}")
-                    logger.info(f"   📝 Description: {classification_result.lead_description}")
+                    logger.info(f"   🎯 Lead Category: {classification_result.lead_category}")
+                    logger.info(f"   📝 Lead Description: {classification_result.lead_description}")
+                    logger.info(f"   💼 Business Type: {classification_result.lead_category}")
+                else:
+                    logger.info(f"   📝 Message Type: General conversation")
+                
                 logger.info(f"   💭 Reasoning: {classification_result.reasoning}")
+                logger.info(f"   📏 Message Length: {len(message_text)} characters")
                 
                 # Prepare result for database operations
                 result = {
                     'message_id': message_id,
                     'classification_result': classification_result,
-                    'success': True
+                    'success': True,
+                    'processing_time_seconds': processing_time
                 }
                 
                 results.append(result)
                 
-                logger.info(f"   ✅ Successfully classified message {message_id}")
+                logger.info(f"   ✅ Successfully classified message {message_id} in {processing_time:.2f}s")
                 
             except Exception as e:
-                logger.error(f"   ❌ Error processing message {message_data.get('id', 'unknown')}: {e}")
+                processing_time = (datetime.now() - message_start_time).total_seconds()
+                logger.error(f"   ❌ Error processing message {message_data.get('id', 'unknown')} after {processing_time:.2f}s: {e}")
                 results.append({
                     'message_id': message_data.get('id', 'unknown'),
                     'classification_result': None,
                     'success': False,
-                    'error': str(e)
+                    'error': str(e),
+                    'processing_time_seconds': processing_time
                 })
                 continue
         
-        logger.info(f"✅ Completed classification of {len(messages)} messages")
+        total_processing_time = sum(r.get('processing_time_seconds', 0) for r in results)
+        successful_classifications = sum(1 for r in results if r['success'])
+        leads_detected = sum(1 for r in results if r['success'] and r['classification_result'].is_lead)
+        
+        logger.info(f"✅ Completed classification of {len(messages)} messages:")
+        logger.info(f"   📊 Successfully classified: {successful_classifications}/{len(messages)}")
+        logger.info(f"   🎯 Leads detected: {leads_detected}")
+        logger.info(f"   ⏱️  Total processing time: {total_processing_time:.2f}s")
+        logger.info(f"   ⚡ Average processing time: {total_processing_time/len(messages):.2f}s per message")
+        
         return results
     
     def process_classification_results(self, classification_results: List[Dict[str, Any]], session) -> int:
@@ -421,7 +445,10 @@ Respond with ONLY a valid JSON object matching the structure above."""
             get_classification_prompt, match_with_existing_categories
         )
         
+        logger.info(f"🗄️  Starting database processing for {len(classification_results)} classification results")
         processed_count = 0
+        leads_created = 0
+        categories_created = 0
         
         for result in classification_results:
             if not result['success']:
@@ -430,14 +457,19 @@ Respond with ONLY a valid JSON object matching the structure above."""
                 
             message_id = result['message_id']
             classification_result = result['classification_result']
+            processing_time = result.get('processing_time_seconds', 0)
+            
+            logger.info(f"🗄️  Processing database operations for message {message_id} (LLM time: {processing_time:.2f}s)")
             
             try:
                 # Get or create intent type
                 intent_name = "lead_seeking" if classification_result.is_lead else "general_message"
                 intent_type_id = get_or_create_intent_type(session, intent_name)
+                logger.debug(f"   📋 Intent type: {intent_name} (ID: {intent_type_id})")
                 
                 # Get classification prompt
                 prompt_template_id = get_classification_prompt(session)
+                logger.debug(f"   📝 Prompt template ID: {prompt_template_id}")
                 
                 # Handle lead category - ONLY for leads
                 lead_category_id = None
@@ -449,14 +481,15 @@ Respond with ONLY a valid JSON object matching the structure above."""
                         if matched_category:
                             # Use the matched existing category
                             lead_category_id = get_or_create_lead_category(session, matched_category)
-                            logger.debug(f"✅ Matched message to existing category: {matched_category}")
+                            logger.info(f"   🎯 Matched to existing category: {matched_category} (ID: {lead_category_id})")
                         else:
                             # Create new category
                             lead_category_id = get_or_create_lead_category(session, classification_result.lead_category)
-                            logger.info(f"✅ Created new category: {classification_result.lead_category}")
+                            categories_created += 1
+                            logger.info(f"   🆕 Created new category: {classification_result.lead_category} (ID: {lead_category_id})")
                     else:
                         # Lead but no category - skip this lead for now
-                        logger.warning(f"⚠️  Lead detected but no category specified, skipping message {message_id}")
+                        logger.warning(f"   ⚠️  Lead detected but no category specified, skipping message {message_id}")
                         continue
                 
                 # Only create classification record for leads
@@ -470,6 +503,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
                         lead_category_id=lead_category_id,
                         raw_llm_output=classification_result.model_dump()
                     )
+                    logger.info(f"   📊 Created classification record (ID: {classification_id})")
                     
                     # Create lead record
                     from src.db.models.whatsapp_message import WhatsAppMessage
@@ -481,20 +515,28 @@ Respond with ONLY a valid JSON object matching the structure above."""
                         group_id=message.group_id,
                         lead_for=classification_result.lead_description or "Lead detected"
                     )
-                    logger.info(f"🎯 Created lead record (ID: {lead_id}) for message {message_id}")
+                    leads_created += 1
+                    logger.info(f"   🎯 Created lead record (ID: {lead_id}) for user {message.sender_id} in group {message.group_id}")
+                    logger.info(f"   📝 Lead description: {classification_result.lead_description}")
                 else:
                     # For non-leads, just mark as processed without creating classification record
-                    logger.debug(f"📝 Non-lead message {message_id} - marking as processed without classification record")
+                    logger.debug(f"   📝 Non-lead message {message_id} - marking as processed without classification record")
                 
                 # Mark message as processed
                 mark_message_as_processed(session, message_id)
+                logger.debug(f"   ✅ Marked message {message_id} as processed")
                 
                 processed_count += 1
-                logger.debug(f"✅ Successfully processed message {message_id}")
+                logger.info(f"   ✅ Successfully processed message {message_id} in database")
                 
             except Exception as e:
-                logger.error(f"❌ Error processing message {message_id}: {e}")
+                logger.error(f"   ❌ Error processing message {message_id} in database: {e}")
                 continue
+        
+        logger.info(f"🗄️  Completed database processing:")
+        logger.info(f"   📊 Processed messages: {processed_count}/{len(classification_results)}")
+        logger.info(f"   🎯 Leads created: {leads_created}")
+        logger.info(f"   🆕 Categories created: {categories_created}")
         
         return processed_count
     

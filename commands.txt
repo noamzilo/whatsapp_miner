@@ -8,6 +8,8 @@ doppler run --command '
 
 run migrations
 doppler run -- poetry run alembic upgrade head
+doppler run --project whatsapp_miner_backend --config dev_personal -- poetry run alembic upgrade head
+
 
 generate env file (for pycharm)
 doppler secrets download --project whatsapp_miner_backend --config dev --no-file --format env > /home/noams/src/whatsapp_miner/.env.doppler
