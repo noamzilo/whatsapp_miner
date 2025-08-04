@@ -44,6 +44,7 @@ jobs:
       SUPABASE_DATABASE_PASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
       MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS: ${{ secrets.MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      ENV_NAME: ${{ needs.set-env.outputs.environment }}
 
     steps:
       - name: ✅ Check required secrets

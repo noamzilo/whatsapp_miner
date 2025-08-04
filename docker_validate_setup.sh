@@ -75,21 +75,15 @@ fi
 echo "🔍 Checking docker-compose.yml syntax..."
 # Create temporary env file with dummy values for validation
 TEMP_ENV="$(mktemp)"
-TEMP_ENV_DEV="$(mktemp)"
-TEMP_ENV_PRD="$(mktemp)"
-trap 'rm -f "$TEMP_ENV" "$TEMP_ENV_DEV" "$TEMP_ENV_PRD"' EXIT
+trap 'rm -f "$TEMP_ENV"' EXIT
 cat > "$TEMP_ENV" << EOF
 DOCKER_IMAGE_NAME_WHATSAPP_MINER=dummy/image:latest
 DOCKER_CONTAINER_NAME_WHATSAPP_MINER=dummy_container
 ENV_FILE=$TEMP_ENV
-ENV_FILE_DEV=$TEMP_ENV_DEV
-ENV_FILE_PRD=$TEMP_ENV_PRD
+ENV_NAME=$ENVIRONMENT
 EOF
 
-cp "$TEMP_ENV" "$TEMP_ENV_DEV"
-cp "$TEMP_ENV" "$TEMP_ENV_PRD"
-
-if ENV_FILE="$TEMP_ENV" ENV_FILE_DEV="$TEMP_ENV_DEV" ENV_FILE_PRD="$TEMP_ENV_PRD" docker compose config --quiet; then
+if ENV_FILE="$TEMP_ENV" ENV_NAME="$ENVIRONMENT" docker compose config --quiet; then
     echo "   ✅ docker-compose.yml is valid"
 else
     echo "   ❌ docker-compose.yml has syntax errors"

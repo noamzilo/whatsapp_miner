@@ -27,10 +27,16 @@ if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
     export NEW_IMAGE_DIGEST
 fi
 
-# Pass ENVIRONMENT to docker_run_core.sh
+# Pass ENVIRONMENT and ENV_NAME to docker_run_core.sh
 export ENVIRONMENT
+export ENV_NAME="$ENVIRONMENT"
+
+# Remove quotes from ENV_NAME if present
+ENV_NAME="${ENV_NAME%\"}"
+ENV_NAME="${ENV_NAME#\"}"
 
 echo "🌍 Environment: $ENVIRONMENT"
+echo "🏷️  Env Name: $ENV_NAME"
 
 ./docker_run_core.sh
 
