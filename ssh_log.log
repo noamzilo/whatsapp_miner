@@ -1,0 +1,58 @@
+=== SSH Command: ls -la '/home/ubuntu/whatsapp_miner' ===
+total 24
+drwxrwxr-x  2 ubuntu ubuntu 4096 Aug  5 03:07 .
+drwxr-x--- 11 ubuntu ubuntu 4096 Aug  5 03:02 ..
+-rw-r--r--  1 ubuntu ubuntu  573 Aug  5 03:11 docker-compose.yml
+-rwxr-xr-x  1 ubuntu ubuntu 2257 Aug  5 03:11 docker_remote_run.sh
+-rwxr-xr-x  1 ubuntu ubuntu 6527 Aug  5 03:11 docker_run_core.sh
+=== SSH Command: docker ps --filter 'name=whatsapp_miner' --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' ===
+NAMES                           IMAGE                                                               STATUS
+whatsapp_miner_classifier_dev   354918365739.dkr.ecr.us-east-1.amazonaws.com/whatsapp_miner/miner   Up 11 minutes
+whatsapp_miner_miner_dev        354918365739.dkr.ecr.us-east-1.amazonaws.com/whatsapp_miner/miner   Up 11 minutes
+=== SSH Command: test -f '/home/ubuntu/whatsapp_miner/docker-compose.yml' ===
+=== SSH Command: mkdir -p '/home/ubuntu/whatsapp_miner' && cd '/home/ubuntu/whatsapp_miner' && set -a && source '/tmp/whatsapp_miner_status.27472.env' && set +a && ENV_FILE='/tmp/whatsapp_miner_status.27472.env' ENV_NAME='dev' docker compose ps ===
+NAME                            IMAGE                                                               COMMAND                  SERVICE      CREATED          STATUS          PORTS
+whatsapp_miner_classifier_dev   354918365739.dkr.ecr.us-east-1.amazonaws.com/whatsapp_miner/miner   "/entrypoint_whatsap…"   classifier   11 minutes ago   Up 11 minutes   
+whatsapp_miner_miner_dev        354918365739.dkr.ecr.us-east-1.amazonaws.com/whatsapp_miner/miner   "/entrypoint_whatsap…"   miner        11 minutes ago   Up 11 minutes   
+=== SSH Command: cd '/home/ubuntu/whatsapp_miner' && set -a && source '/tmp/whatsapp_miner_status.27472.env' && set +a && ENV_FILE='/tmp/whatsapp_miner_status.27472.env' ENV_NAME='dev' docker compose logs --tail 20 ===
+whatsapp_miner_classifier_dev  | 2025-08-05 03:17:16,663 - __main__ - classify_new_messages.py:183 - 124101638433664 - INFO - 📭 No unclassified messages found
+whatsapp_miner_classifier_dev  | 2025-08-05 03:17:16,665 - __main__ - classify_new_messages.py:263 - 124101638433664 - INFO - 
+whatsapp_miner_classifier_dev  | 2025-08-05 03:17:16,665 - __main__ - classify_new_messages.py:264 - 124101638433664 - INFO - 📊 ITERATION SUMMARY:
+whatsapp_miner_classifier_dev  | 2025-08-05 03:17:16,665 - __main__ - classify_new_messages.py:265 - 124101638433664 - INFO -    📝 Messages: 0
+whatsapp_miner_classifier_dev  | 2025-08-05 03:17:16,665 - __main__ - classify_new_messages.py:266 - 124101638433664 - INFO -    🎯 Leads: 0
+whatsapp_miner_classifier_dev  | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:267 - 124101638433664 - INFO -    ⏱️  Duration: 0.02s
+whatsapp_miner_classifier_dev  | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:268 - 124101638433664 - INFO -    ❌ Errors: 0
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,668 - __main__ - classify_new_messages.py:246 - 124101638433664 - INFO - 
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,668 - __main__ - classify_new_messages.py:247 - 124101638433664 - INFO - 🔄==============================================================================
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,668 - __main__ - classify_new_messages.py:248 - 124101638433664 - INFO - 🔄 ITERATION 3 - 2025-08-05 03:22:16
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,668 - __main__ - classify_new_messages.py:249 - 124101638433664 - INFO - 🔄==============================================================================
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,687 - __main__ - classify_new_messages.py:133 - 124101638433664 - INFO - 📊 Total unclassified messages in DB: 782
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,689 - __main__ - classify_new_messages.py:153 - 124101638433664 - INFO - 📖 Processing 0 messages (skipped 50 short messages)
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,689 - __main__ - classify_new_messages.py:183 - 124101638433664 - INFO - 📭 No unclassified messages found
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,692 - __main__ - classify_new_messages.py:263 - 124101638433664 - INFO - 
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,692 - __main__ - classify_new_messages.py:264 - 124101638433664 - INFO - 📊 ITERATION SUMMARY:
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,692 - __main__ - classify_new_messages.py:265 - 124101638433664 - INFO -    📝 Messages: 0
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,692 - __main__ - classify_new_messages.py:266 - 124101638433664 - INFO -    🎯 Leads: 0
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,692 - __main__ - classify_new_messages.py:267 - 124101638433664 - INFO -    ⏱️  Duration: 0.02s
+whatsapp_miner_classifier_dev  | 2025-08-05 03:22:16,692 - __main__ - classify_new_messages.py:268 - 124101638433664 - INFO -    ❌ Errors: 0
+whatsapp_miner_miner_dev       | 2025-08-05 03:17:16,664 - __main__ - classify_new_messages.py:183 - 123620166978432 - INFO - 📭 No unclassified messages found
+whatsapp_miner_miner_dev       | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:263 - 123620166978432 - INFO - 
+whatsapp_miner_miner_dev       | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:264 - 123620166978432 - INFO - 📊 ITERATION SUMMARY:
+whatsapp_miner_miner_dev       | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:265 - 123620166978432 - INFO -    📝 Messages: 0
+whatsapp_miner_miner_dev       | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:266 - 123620166978432 - INFO -    🎯 Leads: 0
+whatsapp_miner_miner_dev       | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:267 - 123620166978432 - INFO -    ⏱️  Duration: 0.02s
+whatsapp_miner_miner_dev       | 2025-08-05 03:17:16,666 - __main__ - classify_new_messages.py:268 - 123620166978432 - INFO -    ❌ Errors: 0
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,667 - __main__ - classify_new_messages.py:246 - 123620166978432 - INFO - 
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,667 - __main__ - classify_new_messages.py:247 - 123620166978432 - INFO - 🔄==============================================================================
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,667 - __main__ - classify_new_messages.py:248 - 123620166978432 - INFO - 🔄 ITERATION 3 - 2025-08-05 03:22:16
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,667 - __main__ - classify_new_messages.py:249 - 123620166978432 - INFO - 🔄==============================================================================
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,690 - __main__ - classify_new_messages.py:133 - 123620166978432 - INFO - 📊 Total unclassified messages in DB: 782
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,691 - __main__ - classify_new_messages.py:153 - 123620166978432 - INFO - 📖 Processing 0 messages (skipped 50 short messages)
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,691 - __main__ - classify_new_messages.py:183 - 123620166978432 - INFO - 📭 No unclassified messages found
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,694 - __main__ - classify_new_messages.py:263 - 123620166978432 - INFO - 
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,694 - __main__ - classify_new_messages.py:264 - 123620166978432 - INFO - 📊 ITERATION SUMMARY:
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,694 - __main__ - classify_new_messages.py:265 - 123620166978432 - INFO -    📝 Messages: 0
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,694 - __main__ - classify_new_messages.py:266 - 123620166978432 - INFO -    🎯 Leads: 0
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,694 - __main__ - classify_new_messages.py:267 - 123620166978432 - INFO -    ⏱️  Duration: 0.03s
+whatsapp_miner_miner_dev       | 2025-08-05 03:22:16,694 - __main__ - classify_new_messages.py:268 - 123620166978432 - INFO -    ❌ Errors: 0
+=== SSH Command: rm -f '/tmp/whatsapp_miner_status.27472.env' ===

@@ -75,17 +75,38 @@ if [[ "$MODE" == "remote" ]]; then
 	# Prepare SSH key
 	KEY_FILE="$(mktemp)"
 	echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$KEY_FILE"
-	chmod 400 "$KEY_FILE"
+	chmod 600 "$KEY_FILE"
 	trap 'rm -f "$KEY_FILE"' EXIT INT TERM
+
+	# Create log file for SSH/SCP commands
+	LOG_FILE="ssh_log.log"
+	rm -f "$LOG_FILE"
+
+	# Function to log SSH commands
+	log_ssh_cmd() {
+		echo "=== SSH Command: $* ===" >> "$LOG_FILE"
+		ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS" "$@" 2>&1 | tee -a "$LOG_FILE"
+		return ${PIPESTATUS[0]}
+	}
+
+	# Function to log SCP commands
+	log_scp_cmd() {
+		echo "=== SCP Command: $* ===" >> "$LOG_FILE"
+		scp -i "$KEY_FILE" -o StrictHostKeyChecking=no "$@" 2>&1 | tee -a "$LOG_FILE"
+		return ${PIPESTATUS[0]}
+	}
 
 	ssh_cmd() { ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS" "$@"; }
 	scp_cmd() { scp -i "$KEY_FILE" -o StrictHostKeyChecking=no "$@"; }
 
 	# Ensure working dir
-	ssh_cmd "mkdir -p '$REMOTE_DIR'"
+	echo "🔧 Creating remote directory: $REMOTE_DIR"
+	log_ssh_cmd "mkdir -p '$REMOTE_DIR' && echo 'Directory created successfully'"
 
 	# Ship scripts + compose
-	scp_cmd docker_run_core.sh docker-compose.yml docker_remote_run.sh "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/"
+	echo "📦 Copying files to remote..."
+	log_scp_cmd docker_run_core.sh docker-compose.yml docker_remote_run.sh "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/"
+	log_ssh_cmd "ls -la '$REMOTE_DIR'"
 
 	# Create temp env on remote - pass ALL environment variables automatically
 	REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
@@ -102,9 +123,13 @@ if [[ "$MODE" == "remote" ]]; then
 	# Execute remote wrapper and clean up temp env
 	# Pass NEW_IMAGE_DIGEST for deployment verification
 	# Change to remote directory before executing
-	ssh_cmd "cd '$REMOTE_DIR' && env -i ENV_FILE='$REMOTE_ENV' NEW_IMAGE_DIGEST='${NEW_IMAGE_DIGEST:-}' ENVIRONMENT='$ENVIRONMENT' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"
-
-	echo -e "\n🚀✅ Remote stack up via docker-compose ✅🚀\n"
+	if log_ssh_cmd "cd '$REMOTE_DIR' && ENV_FILE='$REMOTE_ENV' NEW_IMAGE_DIGEST='${NEW_IMAGE_DIGEST:-}' ENVIRONMENT='$ENVIRONMENT' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"; then
+		echo -e "\n🚀✅ Remote stack up via docker-compose ✅🚀\n"
+	else
+		echo -e "\n❌ Remote deployment failed!\n"
+		echo "📋 SSH log saved to: $LOG_FILE"
+		exit 1
+	fi
 else
 	# ── Local path ───────────────────────────────────────────────────────────
 	export ENVIRONMENT="$ENVIRONMENT"

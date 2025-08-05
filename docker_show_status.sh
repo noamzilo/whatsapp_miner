@@ -68,7 +68,7 @@ REMOTE_DIR="$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER"
 # Prepare SSH key
 KEY_FILE="$(mktemp)"
 echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$KEY_FILE"
-chmod 400 "$KEY_FILE"
+	chmod 600 "$KEY_FILE"
 trap 'rm -f "$KEY_FILE"' EXIT INT TERM
 
 ssh_cmd() { ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS" "$@"; }
@@ -80,13 +80,45 @@ echo ""
 
 # Check remote container status
 echo "🔍 Checking remote container status..."
-if ssh_cmd "cd '$REMOTE_DIR' && docker compose ps"; then
+# Create temp env file on remote with all variables
+REMOTE_ENV="/tmp/whatsapp_miner_status.$RANDOM.env"
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    env | ssh_cmd "cat > '$REMOTE_ENV'"
+else
+    doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
+fi
+
+# Create log file for SSH commands
+LOG_FILE="ssh_log.log"
+rm -f "$LOG_FILE"
+
+# Function to log SSH commands
+log_ssh_cmd() {
+    echo "=== SSH Command: $* ===" >> "$LOG_FILE"
+    ssh_cmd "$@" 2>&1 | tee -a "$LOG_FILE"
+    return ${PIPESTATUS[0]}
+}
+
+# Debug: List what's actually in the remote directory
+echo "   🔍 Checking remote directory contents..."
+log_ssh_cmd "ls -la '$REMOTE_DIR'"
+
+# Check if any containers are running (regardless of docker-compose)
+echo "   🔍 Checking for running containers..."
+log_ssh_cmd "docker ps --filter 'name=whatsapp_miner' --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'"
+
+# Try docker-compose status if files exist
+if log_ssh_cmd "test -f '$REMOTE_DIR/docker-compose.yml'"; then
+    echo "   🔍 Checking docker-compose status..."
+    log_ssh_cmd "mkdir -p '$REMOTE_DIR' && cd '$REMOTE_DIR' && set -a && source '$REMOTE_ENV' && set +a && ENV_FILE='$REMOTE_ENV' ENV_NAME='$ENVIRONMENT' docker compose ps"
     echo ""
     echo "📋 Remote container logs (last 20 lines each):"
-    ssh_cmd "cd '$REMOTE_DIR' && docker compose logs --tail 20"
+    log_ssh_cmd "cd '$REMOTE_DIR' && set -a && source '$REMOTE_ENV' && set +a && ENV_FILE='$REMOTE_ENV' ENV_NAME='$ENVIRONMENT' docker compose logs --tail 20"
 else
-    echo "❌ Failed to get remote container status"
+    echo "   ⚠️  docker-compose.yml not found on remote, but containers might still be running"
 fi
+
+log_ssh_cmd "rm -f '$REMOTE_ENV'"
 
 echo ""
 echo "🏠 Local container status (if any):"
