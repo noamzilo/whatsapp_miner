@@ -69,7 +69,7 @@ echo "🗄️  Running database migrations for environment: $ENVIRONMENT"
 
 # ── Start services ───────────────────────────────────────────────────────────
 echo "🚀 Starting services..."
-./docker_run.sh --env "$ENVIRONMENT"
+./docker_run.sh --env "$ENVIRONMENT" --remote
 
 # ── Show final status ───────────────────────────────────────────────────────
 echo "📊 Final deployment status:"
