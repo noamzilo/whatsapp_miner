@@ -136,6 +136,7 @@ if [[ "$NEED_RESTART" == "true" ]]; then
     docker compose down --remove-orphans --volumes || true
     
     # Force remove any containers with our naming pattern to avoid conflicts
+    # Note: This docker ps command is necessary to find containers started outside docker-compose
     echo "   Removing any conflicting containers..."
     docker ps -a --filter "name=whatsapp_miner" --format "{{.ID}}" | xargs -r docker rm -f || true
     
@@ -183,7 +184,7 @@ for SVC in $COMPOSE_SVCS; do
 	STATUS="$(docker inspect -f '{{.State.Status}}' "$CID")"
 	if [[ "$STATUS" != "running" ]]; then
 		echo "❌  Service $SVC exited during start-up. Logs:"
-		docker logs --tail 200 "$CID" || true
+		docker compose logs --tail 200 "$SVC" || true
 		exit 1
 	fi
 	echo "   ✅ $SVC is running"
