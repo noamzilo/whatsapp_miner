@@ -136,10 +136,23 @@ elif command -v doppler &> /dev/null; then
     esac
     
     # Test database connection for the specified environment
-    if doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- poetry run alembic current &> /dev/null; then
-        echo "   ✅ $ENVIRONMENT database connection works"
+    # Try direct alembic first, then poetry run alembic
+    if command -v alembic &> /dev/null; then
+        if doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- alembic current &> /dev/null; then
+            echo "   ✅ $ENVIRONMENT database connection works"
+        else
+            echo "   ❌ $ENVIRONMENT database connection failed"
+            exit 1
+        fi
+    elif command -v poetry &> /dev/null && poetry run alembic --version &> /dev/null; then
+        if doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- poetry run alembic current &> /dev/null; then
+            echo "   ✅ $ENVIRONMENT database connection works"
+        else
+            echo "   ❌ $ENVIRONMENT database connection failed"
+            exit 1
+        fi
     else
-        echo "   ❌ $ENVIRONMENT database connection failed"
+        echo "   ❌ Alembic not available for database connection test"
         exit 1
     fi
 else

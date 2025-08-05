@@ -43,7 +43,7 @@ if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     
     # Run migrations for the specified environment
     echo "🔄 Running migrations for $ENVIRONMENT database..."
-    poetry run alembic upgrade head
+    alembic upgrade head
     
 else
     echo "🌪️  Running migrations locally with Doppler"

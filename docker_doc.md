@@ -49,6 +49,25 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 - Consistent variable unquoting across all scripts
 - all script use environment variables, and they shouldn't know how the environment is set.
 
+### 4. Environment Awareness
+- **Only `docker_validate_setup.sh` is environment-aware** - Detects GitHub Actions vs local environment
+- **All other scripts are environment agnostic** - They shouldn't know how environment variables are set
+- **GitHub Actions workflow** - Uses GitHub secrets directly, no Doppler required
+- **Local development** - Uses Doppler for secret management
+- **Wrapper scripts** - Provide environment context (Doppler for local, GitHub Actions for CI/CD)
+
+### 5. GitHub Actions Integration
+- **Environment agnostic workflow** - `deploy.yml` doesn't know about Doppler vs GitHub Actions
+- **Simplified dependency installation** - Installs Alembic and psycopg2-binary directly via pip (no Poetry required)
+- **Secret verification** - Validates all required secrets before deployment
+- **Uses the scripts** - Delegates all logic to the deployment scripts
+
+### 6. Local Testing with Act
+- **`deploy_with_act.sh`** - Wrapper to fake GitHub Actions environment locally
+- **Environment simulation** - Makes Act think it's running in GitHub Actions
+- **Secret injection** - Uses Doppler secrets to simulate GitHub Actions secrets
+- **Local debugging** - Allows testing GitHub Actions workflow locally
+
 ## File Responsibilities
 
 ### Core Scripts
@@ -134,6 +153,25 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
   - Restart policies
   - Custom entrypoints
 
+### GitHub Actions & Local Testing
+
+#### `.github/workflows/deploy.yml`
+- **Purpose**: GitHub Actions workflow for automated deployment
+- **Key Features**:
+  - Environment agnostic (doesn't know about Doppler vs GitHub Actions)
+  - Validates all required secrets before deployment
+  - Uses official Poetry action for proper dependency installation
+  - Delegates all logic to deployment scripts
+- **Triggers**: Manual dispatch and pushes to main/dev branches
+
+#### `.github/deploy_with_act.sh`
+- **Purpose**: Local testing wrapper for GitHub Actions workflow
+- **Key Features**:
+  - Fakes GitHub Actions environment for local testing
+  - Uses Doppler secrets to simulate GitHub Actions secrets
+  - Runs Act (GitHub Actions locally) with proper environment
+  - Enables local debugging of deployment workflow
+
 ## Main Concerns Addressed
 
 ### 1. **ECR Authentication Issues**
@@ -160,6 +198,21 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 - **Problem**: No way to verify successful deployments
 - **Solution**: Image digest verification and health checks
 - **Implementation**: `NEW_IMAGE_DIGEST` tracking and container status monitoring
+
+### 6. **Environment Awareness**
+- **Problem**: Scripts need to work in both local (Doppler) and CI/CD (GitHub Actions) environments
+- **Solution**: Environment-aware validation with agnostic deployment scripts
+- **Implementation**: Only `docker_validate_setup.sh` detects environment, all other scripts are agnostic
+
+### 7. **GitHub Actions Integration**
+- **Problem**: Poetry installation permission issues and unnecessary complexity in CI/CD
+- **Solution**: Simplified dependency installation (Alembic and psycopg2-binary via pip) and proper environment handling
+- **Implementation**: Environment agnostic workflow that delegates to scripts, no Poetry required in CI/CD
+
+### 8. **Local Testing**
+- **Problem**: No way to test GitHub Actions workflow locally
+- **Solution**: Act wrapper with environment simulation
+- **Implementation**: `deploy_with_act.sh` fakes GitHub Actions environment using Doppler secrets
 
 ## Usage Examples
 

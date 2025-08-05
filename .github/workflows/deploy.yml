@@ -85,15 +85,9 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: latest
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-
       - name: Install Python dependencies
-        run: poetry install
+        run: |
+          pip install alembic psycopg2-binary
 
       - name: Make deploy scripts executable
         run: chmod +x docker_*.sh
