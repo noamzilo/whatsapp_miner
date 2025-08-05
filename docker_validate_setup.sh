@@ -90,9 +90,11 @@ else
     exit 1
 fi
 
-# Test 5: Check if Doppler is available (for local testing)
+# Test 5: Check if Doppler is available (for local testing only)
 echo "🌪️  Checking Doppler availability..."
-if command -v doppler &> /dev/null; then
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "   ✅ Running in GitHub Actions - Doppler not required"
+elif command -v doppler &> /dev/null; then
     echo "   ✅ Doppler is installed"
 else
     echo "   ⚠️  Doppler not found (required for local deployment)"
@@ -100,8 +102,10 @@ fi
 
 # Test 6: Check if alembic is available
 echo "🗄️  Checking migration tools..."
-if command -v poetry &> /dev/null && poetry run alembic --version &> /dev/null; then
+if command -v alembic &> /dev/null; then
     echo "   ✅ Alembic is available"
+elif command -v poetry &> /dev/null && poetry run alembic --version &> /dev/null; then
+    echo "   ✅ Alembic is available via Poetry"
 else
     echo "   ❌ Alembic not found (required for migrations)"
     exit 1
@@ -116,9 +120,11 @@ else
     exit 1
 fi
 
-# Test 8: Check if database connection works for the specified environment (if Doppler is available)
+# Test 8: Check if database connection works for the specified environment
 echo "🔌 Testing database connection for environment: $ENVIRONMENT..."
-if command -v doppler &> /dev/null; then
+if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "   ✅ Running in GitHub Actions - database connection will be tested during deployment"
+elif command -v doppler &> /dev/null; then
     # Map environment to Doppler config
     case "$ENVIRONMENT" in
         "dev")
