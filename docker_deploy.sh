@@ -69,16 +69,14 @@ echo "🗄️  Running database migrations for environment: $ENVIRONMENT"
 echo "🚀 Deploying to remote host..."
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     echo "🏗️  Running in GitHub Actions - using GitHub secrets"
-    ./docker_run.sh --env "$ENVIRONMENT" --remote
 else
     echo "🌪️  Running locally - using Doppler secrets"
-    ./docker_run.sh --env "$ENVIRONMENT" --remote
 fi
+./docker_run.sh --env "$ENVIRONMENT" --remote
 
-# Show final status
+# Show final status and verify deployment
 echo "📊 Final deployment status:"
 ./docker_show_status.sh --env "$ENVIRONMENT"
-
 echo ""
 echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"
 echo "   Environment: $ENVIRONMENT"

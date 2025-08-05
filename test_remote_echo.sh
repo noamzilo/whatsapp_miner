@@ -12,7 +12,7 @@ eval "$(doppler secrets download --no-file --format env)"
 # ── Create temp SSH key
 KEY_FILE=$(mktemp)
 echo "$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$KEY_FILE"
-chmod 400 "$KEY_FILE"
+	chmod 600 "$KEY_FILE"
 
 # ── Create remote script
 LOCAL_SCRIPT=$(mktemp)
