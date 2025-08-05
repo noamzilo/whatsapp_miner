@@ -31,3 +31,11 @@ doppler secrets download --project whatsapp_miner_backend --config dev --no-file
 
 ### Recommended: Clear destination and migrate (most reliable)
 ./src/scripts/migrate_db.sh --src dev_personal --dst prd --clear
+
+
+
+######## DANGER ZONE
+# purge doppler:
+doppler reset
+doppler login
+doppler setup
