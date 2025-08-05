@@ -43,20 +43,17 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$AWS_EC2_REGION}"
 echo "🔍 Validating deployment setup..."
 ./docker_validate_setup.sh --env "$ENVIRONMENT"
 
-# Get ECR registry from cleaned image name
-ECR_REGISTRY="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%/*}"
-
-# Login to ECR
-aws ecr get-login-password --region "$AWS_EC2_REGION" \
-	| docker login --username AWS --password-stdin "$ECR_REGISTRY"
-
-# Build and push image
+# Build and push image (ECR authentication is now handled in docker_build.sh)
 echo "🔨 Building and pushing image..."
 ./docker_build.sh --env "$ENVIRONMENT" --push
 
-# Get the image digest for verification
-NEW_IMAGE_DIGEST="$(docker images --digests --format "table {{.Repository}}:{{.Tag}}\t{{.Digest}}" | grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}')"
+# Get the environment-specific image name that was exported by docker_build.sh
+ENV_SPECIFIC_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER_ENV:-$DOCKER_IMAGE_NAME_WHATSAPP_MINER}"
+
+# Get the image digest for verification (try environment-specific first, then fallback to base)
+NEW_IMAGE_DIGEST="$(docker images --digests --format "table {{.Repository}}:{{.Tag}}\t{{.Digest}}" | grep "$ENV_SPECIFIC_IMAGE_NAME" | awk '{print $2}' || docker images --digests --format "table {{.Repository}}:{{.Tag}}\t{{.Digest}}" | grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}')"
 echo "📦 New image digest: $NEW_IMAGE_DIGEST"
+echo "📦 Environment-specific image: $ENV_SPECIFIC_IMAGE_NAME"
 
 # Export for verification in remote script
 export NEW_IMAGE_DIGEST

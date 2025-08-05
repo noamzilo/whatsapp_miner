@@ -56,22 +56,13 @@ if ! aws sts get-caller-identity >/dev/null 2>&1; then
 fi
 echo "✅ AWS credentials are valid"
 
-# ── 5. Prepare ECR login vars ───────────────────────────────────────────────
-IMAGE_NAME="$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
-AWS_ECR_REGISTRY="${IMAGE_NAME%/*}"
-echo "📦 ECR Registry: $AWS_ECR_REGISTRY"
-
-echo "🔐 Getting ECR login password..."
-AWS_ECR_LOGIN_PASSWORD="$(aws ecr get-login-password --region "$AWS_EC2_REGION")"
-export AWS_ECR_REGISTRY AWS_ECR_LOGIN_PASSWORD
-
-# ── 6. Generate temp .env containing ALL Doppler secrets ────────────────────
+# ── 5. Generate temp .env containing ALL Doppler secrets ────────────────────
 ENV_FILE="$(mktemp)"
 trap 'rm -f "$ENV_FILE"' EXIT INT TERM
 echo "📝 Generating environment file: $ENV_FILE"
 doppler secrets download --no-file --format docker > "$ENV_FILE"
 export ENV_FILE    # read by docker-compose.yml
 
-# ── 7. Delegate to core runner ──────────────────────────────────────────────
+# ── 6. Delegate to core runner ──────────────────────────────────────────────
 echo "🚀 Starting docker core runner..."
 ./docker_run_core.sh

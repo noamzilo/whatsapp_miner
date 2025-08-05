@@ -4,8 +4,9 @@
 # Required env vars (already exported by wrapper):
 #   DOCKER_IMAGE_NAME_WHATSAPP_MINER
 #   ENV_FILE
-#   AWS_ECR_LOGIN_PASSWORD
-#   AWS_ECR_REGISTRY
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_DEFAULT_REGION
 #   DOCKER_COMPOSE_SERVICES           default: all services
 #   NEW_IMAGE_DIGEST                  optional: for deployment verification
 #   ENVIRONMENT                       dev or prd (default: dev)
@@ -15,8 +16,9 @@ set -euo pipefail
 
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?}"
 : "${ENV_FILE:?}"
-: "${AWS_ECR_LOGIN_PASSWORD:?}"
-: "${AWS_ECR_REGISTRY:?}"
+: "${AWS_ACCESS_KEY_ID:?}"
+: "${AWS_SECRET_ACCESS_KEY:?}"
+: "${AWS_DEFAULT_REGION:?}"
 
 COMPOSE_SVCS="${DOCKER_COMPOSE_SERVICES:-}"
 ENVIRONMENT="${ENVIRONMENT:-dev}"
@@ -26,14 +28,19 @@ ENV_NAME="${ENV_NAME:-$ENVIRONMENT}"
 ENV_NAME="${ENV_NAME%\"}"
 ENV_NAME="${ENV_NAME#\"}"
 
+# Use environment-specific image name if available, otherwise fall back to base
+IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER_ENV:-$DOCKER_IMAGE_NAME_WHATSAPP_MINER}"
+
 echo "🔧 Starting docker-compose deployment..."
-echo "   Image: $DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+echo "   Base image: $DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+echo "   Environment-specific image: $IMAGE_NAME"
 echo "   Environment: $ENVIRONMENT"
 echo "   Env Name: $ENV_NAME"
 echo "   Services: ${COMPOSE_SVCS:-all}"
 echo "   Env file: $ENV_FILE"
 
-# Export ENV_NAME for docker-compose
+# Export the image name for docker-compose (this is what docker-compose.yml expects)
+export DOCKER_IMAGE_NAME_WHATSAPP_MINER="$IMAGE_NAME"
 export ENV_NAME
 
 # Source environment file to make variables available to docker-compose
@@ -48,7 +55,13 @@ fi
 
 # 1│Login to ECR so Compose can pull private image
 echo "🔐 Logging into ECR..."
-docker login --username AWS --password-stdin "$AWS_ECR_REGISTRY" <<<"$AWS_ECR_LOGIN_PASSWORD"
+# Get ECR registry from cleaned image name
+CLEAN_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
+CLEAN_IMAGE_NAME="${CLEAN_IMAGE_NAME#\"}"
+ECR_REGISTRY="${CLEAN_IMAGE_NAME%/*}"
+
+aws ecr get-login-password --region "$AWS_DEFAULT_REGION" \
+    | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
 # 2│Check for any existing containers using our image (regardless of how they were started)
 echo "🔍 Checking for existing containers using our image..."
