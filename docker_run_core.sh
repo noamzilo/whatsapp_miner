@@ -60,8 +60,15 @@ CLEAN_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
 CLEAN_IMAGE_NAME="${CLEAN_IMAGE_NAME#\"}"
 ECR_REGISTRY="${CLEAN_IMAGE_NAME%/*}"
 
+# Use temporary directory for AWS credentials to avoid permission issues
+export AWS_SHARED_CREDENTIALS_FILE="/tmp/aws_credentials_$$"
+export AWS_CONFIG_FILE="/tmp/aws_config_$$"
+
 aws ecr get-login-password --region "$AWS_DEFAULT_REGION" \
     | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+# Clean up temporary files
+rm -f "$AWS_SHARED_CREDENTIALS_FILE" "$AWS_CONFIG_FILE" 2>/dev/null || true
 
 # 2│Check for any existing containers using our image (regardless of how they were started)
 echo "🔍 Checking for existing containers using our image..."
@@ -75,6 +82,11 @@ if [[ -n "$EXISTING_CONTAINERS" ]]; then
     
     # Check if any of these containers are using the new image digest
     NEED_RESTART=true
+    NEW_IMAGE_DIGEST=""
+    if [[ -n "${DIGEST_FILE_PATH:-}" && -f "$DIGEST_FILE_PATH" ]]; then
+        NEW_IMAGE_DIGEST="$(cat "$DIGEST_FILE_PATH")"
+    fi
+    
     if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
         echo "   🔍 Checking if existing containers need restart..."
         
@@ -180,7 +192,6 @@ for SVC in $COMPOSE_SVCS; do
 	[[ -z "$CID" ]] && continue
 	
 	echo "   Checking $SVC (container: $CID)..."
-	sleep 10
 	STATUS="$(docker inspect -f '{{.State.Status}}' "$CID")"
 	if [[ "$STATUS" != "running" ]]; then
 		echo "❌  Service $SVC exited during start-up. Logs:"

@@ -29,8 +29,7 @@ from src.utils.log import get_logger, setup_logger
 from src.paths import logs_root
 from src.db.db import get_category_names, get_message_by_id, get_lead_by_id, get_total_leads_count
 
-# Setup logging
-setup_logger(logs_root)
+# Get logger (setup_logger should only be called in main runner files)
 logger = get_logger(__name__)
 
 

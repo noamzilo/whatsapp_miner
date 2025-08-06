@@ -113,17 +113,16 @@ if [[ "$MODE" == "remote" ]]; then
 	
 	if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
 		# GitHub Actions: export ALL environment variables to remote .env file
-		# No filtering - pass EVERYTHING
-		env | ssh_cmd "cat > '$REMOTE_ENV'"
+		env | sed 's/^/export /' | ssh_cmd "cat > '$REMOTE_ENV'"
 	else
 		# Local: use Doppler to create .env with all variables
 		doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
 	fi
 
 	# Execute remote wrapper and clean up temp env
-	# Pass NEW_IMAGE_DIGEST for deployment verification
+	# Pass DIGEST_FILE_PATH for deployment verification
 	# Change to remote directory before executing
-	if log_ssh_cmd "cd '$REMOTE_DIR' && ENV_FILE='$REMOTE_ENV' NEW_IMAGE_DIGEST='${NEW_IMAGE_DIGEST:-}' ENVIRONMENT='$ENVIRONMENT' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"; then
+	if log_ssh_cmd "cd '$REMOTE_DIR' && ENV_FILE='$REMOTE_ENV' DIGEST_FILE_PATH='${DIGEST_FILE_PATH:-}' ENVIRONMENT='$ENVIRONMENT' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"; then
 		echo -e "\n🚀✅ Remote stack up via docker-compose ✅🚀\n"
 	else
 		echo -e "\n❌ Remote deployment failed!\n"

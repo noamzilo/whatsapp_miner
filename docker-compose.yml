@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     env_file:
       - ${ENV_FILE}
-    command: poetry run python src/receive_notification.py
+    entrypoint: ["/entrypoint_whatsapp_miner.sh"]
 
   classifier:
     image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
@@ -15,5 +15,5 @@ services:
       - ${ENV_FILE}
     environment:
       - DATABASE_ENV=${ENV_NAME}
-    entrypoint: ["/entrypoint_whatsapp_miner.sh"]
+    entrypoint: ["/entrypoint_message_classifier.sh"]
 

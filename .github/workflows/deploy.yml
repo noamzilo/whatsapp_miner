@@ -47,6 +47,71 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
     steps:
+      - name: 🔍 Inline Environment Verification
+        run: |
+          echo "🔍 Verifying environment variables are properly set..."
+          
+          # Check if variables are empty or contain placeholder values
+          empty_vars=""
+          for var in \
+            AWS_EC2_HOST_ADDRESS \
+            AWS_EC2_PEM_CHATBOT_SA_B64 \
+            AWS_EC2_REGION \
+            AWS_EC2_USERNAME \
+            AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER \
+            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY \
+            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID \
+            DOCKER_CONTAINER_NAME_WHATSAPP_MINER \
+            DOCKER_IMAGE_NAME_WHATSAPP_MINER \
+            GREEN_API_INSTANCE_API_TOKEN \
+            GREEN_API_INSTANCE_ID \
+            MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS \
+            GROQ_API_KEY
+          do
+            value="${!var}"
+            if [[ -z "$value" ]]; then
+              echo "❌ Empty: $var"
+              empty_vars="$empty_vars $var"
+            elif [[ "$value" == *"secrets."* ]]; then
+              echo "❌ Placeholder: $var (contains template syntax)"
+              empty_vars="$empty_vars $var"
+            elif [[ "$value" == "***" ]]; then
+              echo "❌ Masked: $var (contains ***)"
+              empty_vars="$empty_vars $var"
+            else
+              echo "✅ Valid: $var (length: ${#value})"
+            fi
+          done
+          
+          if [[ -n "$empty_vars" ]]; then
+            echo ""
+            echo "❌ Environment verification failed! Empty or invalid variables: $empty_vars"
+            echo "   Please check your GitHub repository secrets configuration."
+            exit 1
+          fi
+          
+          echo ""
+          echo "✅ All environment variables are properly set!"
+          
+          # Test AWS credentials format
+          echo ""
+          echo "🔐 Testing AWS credentials format..."
+          if [[ "${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID}" =~ ^[A-Z0-9]{20}$ ]]; then
+            echo "✅ AWS Access Key ID format is valid"
+          else
+            echo "❌ AWS Access Key ID format is invalid (should be 20 characters)"
+            exit 1
+          fi
+          
+          if [[ "${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY}" =~ ^[A-Za-z0-9+/]{40}$ ]]; then
+            echo "✅ AWS Secret Access Key format is valid"
+          else
+            echo "❌ AWS Secret Access Key format is invalid (should be 40 characters)"
+            exit 1
+          fi
+          
+          echo "✅ AWS credentials format verification passed!"
+
       - name: ✅ Check required secrets
         run: |
           missing=""

@@ -55,8 +55,10 @@ NEW_IMAGE_DIGEST="$(docker images --digests --format "table {{.Repository}}:{{.T
 echo "📦 New image digest: $NEW_IMAGE_DIGEST"
 echo "📦 Environment-specific image: $ENV_SPECIFIC_IMAGE_NAME"
 
-# Export for verification in remote script
-export NEW_IMAGE_DIGEST
+# Store digest in a file for verification (avoid exporting invalid variable names)
+DIGEST_FILE="/tmp/whatsapp_miner_digest.$RANDOM"
+echo "$NEW_IMAGE_DIGEST" > "$DIGEST_FILE"
+export DIGEST_FILE_PATH="$DIGEST_FILE"
 
 # Run migrations for the specified environment
 echo "🗄️  Running database migrations for environment: $ENVIRONMENT"
@@ -74,6 +76,12 @@ fi
 # Show final status and verify deployment
 echo "📊 Final deployment status:"
 ./docker_verify_deployment.sh --env "$ENVIRONMENT"
+
+# Clean up digest file
+if [[ -n "${DIGEST_FILE_PATH:-}" && -f "$DIGEST_FILE_PATH" ]]; then
+    rm -f "$DIGEST_FILE_PATH"
+fi
+
 echo ""
 echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"
 echo "   Environment: $ENVIRONMENT"

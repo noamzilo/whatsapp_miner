@@ -57,8 +57,16 @@ if [[ "$PUSH_IMAGE" == "true" ]]; then
     
     # Login to ECR
     echo "🔐 Logging into ECR registry: $ECR_REGISTRY"
+    
+    # Use temporary directory for AWS credentials to avoid permission issues
+    export AWS_SHARED_CREDENTIALS_FILE="/tmp/aws_credentials_$$"
+    export AWS_CONFIG_FILE="/tmp/aws_config_$$"
+    
     aws ecr get-login-password --region "$AWS_DEFAULT_REGION" \
         | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+    
+    # Clean up temporary files
+    rm -f "$AWS_SHARED_CREDENTIALS_FILE" "$AWS_CONFIG_FILE" 2>/dev/null || true
 fi
 
 # Create environment-specific image name

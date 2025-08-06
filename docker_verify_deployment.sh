@@ -33,7 +33,6 @@ echo "🔍 Verifying deployment for environment: $ENVIRONMENT"
 
 # Check if we're in GitHub Actions or local environment
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-    echo "🏗️  Running verification in GitHub Actions environment"
     # GitHub Actions: use environment variables directly
     : "${AWS_EC2_HOST_ADDRESS:?}"
     : "${AWS_EC2_USERNAME:?}"
@@ -73,13 +72,12 @@ trap 'rm -f "$KEY_FILE"' EXIT INT TERM
 
 ssh_cmd() { ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS" "$@"; }
 
-echo "🌐 Remote Host: $AWS_EC2_HOST_ADDRESS"
-echo "📁 Remote Directory: $REMOTE_DIR"
-
 # Create temp env file on remote with all variables
 REMOTE_ENV="/tmp/whatsapp_miner_verify.$RANDOM.env"
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-    env | ssh_cmd "cat > '$REMOTE_ENV'"
+    # Export all environment variables in proper format, filtering out invalid names
+    # Filter out variables with invalid characters (like Docker image digests with colons)
+    env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | sed 's/^/export /' | ssh_cmd "cat > '$REMOTE_ENV'"
 else
     doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
 fi
@@ -87,6 +85,10 @@ fi
 # Function to check if containers are running
 check_containers() {
     echo "🔍 Checking if containers are running..."
+    
+    # Give containers time to start
+    echo "⏳ Waiting for containers to start..."
+    sleep 15
     
     # Get running containers
     RUNNING_CONTAINERS="$(ssh_cmd "docker ps --filter 'name=whatsapp_miner' --format '{{.Names}}'")"
@@ -182,7 +184,7 @@ else
     ssh_cmd "cd '$REMOTE_DIR' && set -a && source '$REMOTE_ENV' && set +a && ENV_FILE='$REMOTE_ENV' ENV_NAME='$ENVIRONMENT' docker compose ps"
     echo ""
     echo "   Recent logs:"
-    ssh_cmd "cd '$REMOTE_DIR' && set -a && source '$REMOTE_ENV' && set +a && ENV_FILE='$REMOTE_ENV' ENV_NAME='$ENVIRONMENT' docker compose logs --tail 50"
+    ssh_cmd "cd '$REMOTE_DIR' && set -a && source '$REMOTE_ENV' && set +a && ENV_FILE='$REMOTE_ENV' ENV_NAME='$ENVIRONMENT' docker compose logs --tail 20"
     
     ssh_cmd "rm -f '$REMOTE_ENV'"
     exit 1

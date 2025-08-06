@@ -130,7 +130,9 @@ def setup_logger(log_location=None,
 
 	with _log_lock:
 		if _log_was_setup:
-			logging.root.warning(f"Logger was already set up, ignoring additional setup! "
+			# Only show this in debug mode to reduce log pollution
+			if logging.root.level <= logging.DEBUG:
+				logging.root.debug(f"Logger was already set up, ignoring additional setup! "
 								 f"Previously initialized here: {_log_setup_location}")
 			return
 		logging.root.setLevel(logging.DEBUG)

@@ -83,7 +83,8 @@ echo "🔍 Checking remote container status..."
 # Create temp env file on remote with all variables
 REMOTE_ENV="/tmp/whatsapp_miner_status.$RANDOM.env"
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-    env | ssh_cmd "cat > '$REMOTE_ENV'"
+    # Export all environment variables in proper format
+    env | sed 's/^/export /' | ssh_cmd "cat > '$REMOTE_ENV'"
 else
     doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
 fi
