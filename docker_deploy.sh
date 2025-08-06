@@ -46,7 +46,7 @@ echo "🔍 Validating deployment setup…"
 ./docker_validate_setup.sh --env "$ENV_NAME"
 
 echo "🔨 Building & pushing image…"
-./docker_build.sh --push
+./docker_build.sh --env "$ENV_NAME" --push --image-name "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" --region "$AWS_EC2_REGION" --access-key "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID" --secret-key "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 
 NEW_IMAGE_DIGEST=$(docker images --digests --format 'table {{.Repository}}:{{.Tag}}\t{{.Digest}}' |
                    grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}')

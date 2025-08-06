@@ -68,55 +68,30 @@ ECR_REGISTRY="${CLEAN_IMAGE_NAME%/*}"
 echo "🔍 Debug: ECR_REGISTRY: $ECR_REGISTRY"
 
 # Create AWS credential files in a writable location
-echo "🔍 Debug: Creating AWS credential directory..."
 AWS_CREDS_DIR="/tmp/aws_creds_$$"
-echo "🔍 Debug: AWS_CREDS_DIR = $AWS_CREDS_DIR"
-
-echo "🔍 Debug: Creating directory..."
 mkdir -p "$AWS_CREDS_DIR"
-echo "🔍 Debug: Directory created successfully"
-
-echo "🔍 Debug: Setting directory permissions..."
 chmod 700 "$AWS_CREDS_DIR"
-echo "🔍 Debug: Directory permissions set"
 
 export AWS_SHARED_CREDENTIALS_FILE="$AWS_CREDS_DIR/credentials"
 export AWS_CONFIG_FILE="$AWS_CREDS_DIR/config"
 
-echo "🔍 Debug: AWS_SHARED_CREDENTIALS_FILE = $AWS_SHARED_CREDENTIALS_FILE"
-echo "🔍 Debug: AWS_CONFIG_FILE = $AWS_CONFIG_FILE"
-
 # Create the credential files with proper content
-echo "🔍 Debug: Creating credentials file..."
 cat > "$AWS_SHARED_CREDENTIALS_FILE" << EOF
 [default]
 aws_access_key_id = $AWS_ACCESS_KEY_ID
 aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
 EOF
-echo "🔍 Debug: Credentials file created"
 
-echo "🔍 Debug: Creating config file..."
 cat > "$AWS_CONFIG_FILE" << EOF
 [default]
 region = $AWS_DEFAULT_REGION
 output = json
 EOF
-echo "🔍 Debug: Config file created"
 
-echo "🔍 Debug: Setting file permissions..."
 chmod 600 "$AWS_SHARED_CREDENTIALS_FILE" "$AWS_CONFIG_FILE"
-echo "🔍 Debug: File permissions set"
-
-echo "🔍 Debug: About to run AWS CLI..."
-echo "🔍 Debug: Command: aws ecr get-login-password --region $AWS_DEFAULT_REGION"
 
 # Use AWS CLI with the credential files
-echo "🔍 Debug: Running AWS CLI to get ECR password..."
 ECR_PASSWORD=$(aws ecr get-login-password --region "$AWS_DEFAULT_REGION")
-echo "🔍 Debug: AWS CLI completed, password length: ${#ECR_PASSWORD}"
-
-echo "🔍 Debug: About to run docker login..."
-echo "🔍 Debug: Docker login command: docker login --username AWS --password-stdin $ECR_REGISTRY"
 
 # Configure Docker to use a writable location for credentials
 DOCKER_CONFIG_DIR="/tmp/docker_config_$$"
@@ -124,20 +99,14 @@ mkdir -p "$DOCKER_CONFIG_DIR"
 chmod 700 "$DOCKER_CONFIG_DIR"
 export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
 
-echo "🔍 Debug: DOCKER_CONFIG = $DOCKER_CONFIG"
-
 # Use AWS CLI with the credential files
 echo "$ECR_PASSWORD" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
-
-echo "🔍 Debug: Docker login command completed"
 
 # Clean up Docker config
 rm -rf "$DOCKER_CONFIG_DIR"
 
 # Clean up credential files
-echo "🔍 Debug: Cleaning up credential files..."
 rm -rf "$AWS_CREDS_DIR"
-echo "🔍 Debug: Cleanup completed"
 
 # 2│Check for any existing containers using our image (regardless of how they were started)
 echo "🔍 Checking for existing containers using our image..."
