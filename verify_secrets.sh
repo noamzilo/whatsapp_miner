@@ -110,4 +110,5 @@ if [[ ! "$supabase_conn" =~ ^postgresql:// ]]; then
 fi
 
 echo "✅ All required environment variables are present and valid!"
-echo "📊 Summary: ${#required_vars[@]} variables verified successfully" 
+echo "📊 Summary: ${#required_vars[@]} variables verified successfully"
+echo "🟢 Secrets verification completed successfully!" 

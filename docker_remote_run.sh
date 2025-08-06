@@ -37,6 +37,12 @@ echo "🌍 Environment: $ENVIRONMENT"
 echo "🏷️  Env Name: $ENV_NAME"
 echo "📄 Env File: $ENV_FILE"
 
+# Debug: Check user and AWS environment
+echo "🔍 Debug: Current user: $(whoami)"
+echo "🔍 Debug: AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
+echo "🔍 Debug: AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
+echo "🔍 Debug: AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION"
+
 ./docker_run_core.sh
 
 # Clean up digest file if it exists

@@ -55,18 +55,80 @@ if [[ "$PUSH_IMAGE" == "true" ]]; then
     CLEAN_IMAGE_NAME="${CLEAN_IMAGE_NAME#\"}"
     ECR_REGISTRY="${CLEAN_IMAGE_NAME%/*}"
     
-    # Login to ECR
+    # Create AWS credential files in a writable location
+    echo "🔍 Debug: Creating AWS credential directory..."
+    AWS_CREDS_DIR="/tmp/aws_creds_$$"
+    echo "🔍 Debug: AWS_CREDS_DIR = $AWS_CREDS_DIR"
+    
+    echo "🔍 Debug: Creating directory..."
+    mkdir -p "$AWS_CREDS_DIR"
+    echo "🔍 Debug: Directory created successfully"
+    
+    echo "🔍 Debug: Setting directory permissions..."
+    chmod 700 "$AWS_CREDS_DIR"
+    echo "🔍 Debug: Directory permissions set"
+    
+    export AWS_SHARED_CREDENTIALS_FILE="$AWS_CREDS_DIR/credentials"
+    export AWS_CONFIG_FILE="$AWS_CREDS_DIR/config"
+    
+    echo "🔍 Debug: AWS_SHARED_CREDENTIALS_FILE = $AWS_SHARED_CREDENTIALS_FILE"
+    echo "🔍 Debug: AWS_CONFIG_FILE = $AWS_CONFIG_FILE"
+    
+    # Create the credential files with proper content
+    echo "🔍 Debug: Creating credentials file..."
+    cat > "$AWS_SHARED_CREDENTIALS_FILE" << EOF
+[default]
+aws_access_key_id = $AWS_ACCESS_KEY_ID
+aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+EOF
+    echo "🔍 Debug: Credentials file created"
+    
+    echo "🔍 Debug: Creating config file..."
+    cat > "$AWS_CONFIG_FILE" << EOF
+[default]
+region = $AWS_DEFAULT_REGION
+output = json
+EOF
+    echo "🔍 Debug: Config file created"
+    
+    echo "🔍 Debug: Setting file permissions..."
+    chmod 600 "$AWS_SHARED_CREDENTIALS_FILE" "$AWS_CONFIG_FILE"
+    echo "🔍 Debug: File permissions set"
+    
+    # Login to ECR using credential files
     echo "🔐 Logging into ECR registry: $ECR_REGISTRY"
     
-    # Use temporary directory for AWS credentials to avoid permission issues
-    export AWS_SHARED_CREDENTIALS_FILE="/tmp/aws_credentials_$$"
-    export AWS_CONFIG_FILE="/tmp/aws_config_$$"
+    echo "🔍 Debug: About to run AWS CLI..."
+    echo "🔍 Debug: Command: aws ecr get-login-password --region $AWS_DEFAULT_REGION"
     
-    aws ecr get-login-password --region "$AWS_DEFAULT_REGION" \
-        | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+    # Use AWS CLI with the credential files
+    echo "🔍 Debug: Running AWS CLI to get ECR password..."
+    ECR_PASSWORD=$(aws ecr get-login-password --region "$AWS_DEFAULT_REGION")
+    echo "🔍 Debug: AWS CLI completed, password length: ${#ECR_PASSWORD}"
     
-    # Clean up temporary files
-    rm -f "$AWS_SHARED_CREDENTIALS_FILE" "$AWS_CONFIG_FILE" 2>/dev/null || true
+    echo "🔍 Debug: About to run docker login..."
+    echo "🔍 Debug: Docker login command: docker login --username AWS --password-stdin $ECR_REGISTRY"
+    
+    # Configure Docker to use a writable location for credentials
+    DOCKER_CONFIG_DIR="/tmp/docker_config_$$"
+    mkdir -p "$DOCKER_CONFIG_DIR"
+    chmod 700 "$DOCKER_CONFIG_DIR"
+    export DOCKER_CONFIG="$DOCKER_CONFIG_DIR"
+    
+    echo "🔍 Debug: DOCKER_CONFIG = $DOCKER_CONFIG"
+    
+    # Use AWS CLI with the credential files
+    echo "$ECR_PASSWORD" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+    
+    echo "🔍 Debug: Docker login command completed"
+    
+    # Clean up Docker config
+    rm -rf "$DOCKER_CONFIG_DIR"
+    
+    # Clean up credential files
+    echo "🔍 Debug: Cleaning up credential files..."
+    rm -rf "$AWS_CREDS_DIR"
+    echo "🔍 Debug: Cleanup completed"
 fi
 
 # Create environment-specific image name
@@ -108,6 +170,21 @@ docker tag "$ENV_SPECIFIC_IMAGE_NAME" "$CLEAN_IMAGE_NAME"
 
 if [[ "$PUSH_IMAGE" == "true" ]]; then
     echo "📤 Pushing environment-specific image to registry..."
+    
+    # Debug: Check if ECR repository exists
+    echo "🔍 Debug: Checking if ECR repository exists..."
+    REPO_NAME="${CLEAN_IMAGE_NAME#*/}"
+    echo "🔍 Debug: Repository name: $REPO_NAME"
+    
+    # Check if repository exists
+    if aws ecr describe-repositories --repository-names "$REPO_NAME" --region "$AWS_DEFAULT_REGION" >/dev/null 2>&1; then
+        echo "🔍 Debug: ECR repository exists"
+    else
+        echo "🔍 Debug: ECR repository does not exist, creating it..."
+        aws ecr create-repository --repository-name "$REPO_NAME" --region "$AWS_DEFAULT_REGION"
+        echo "🔍 Debug: ECR repository created"
+    fi
+    
     docker push "$ENV_SPECIFIC_IMAGE_NAME"
     echo "📤 Pushing base image to registry..."
     docker push "$CLEAN_IMAGE_NAME"
