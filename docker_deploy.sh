@@ -43,7 +43,7 @@ export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$AWS_EC2_REGION}"
 
 echo "🔍 Validating deployment setup…"
-./docker_validate_setup.sh
+./docker_validate_setup.sh --env "$ENV_NAME"
 
 echo "🔨 Building & pushing image…"
 ./docker_build.sh --push
@@ -57,7 +57,7 @@ echo "$NEW_IMAGE_DIGEST" > "$DIGEST_FILE"
 export DIGEST_FILE_PATH="$DIGEST_FILE"
 
 echo "🗄️  Running migrations…"
-./run_migrations.sh
+./run_migrations.sh --env "$ENV_NAME"
 
 echo "🚀 Deploying to remote host…"
 ./docker_run.sh --env "$ENV_NAME" --remote

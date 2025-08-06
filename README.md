@@ -45,7 +45,7 @@ If you need to run individual steps:
 ./docker_build.sh --env dev --push
 
 # Run database migrations
-./run_migrations.sh --env dev
+./run_migrations.sh --env ${ENV_NAME}
 
 # Start services locally
 ./docker_run.sh --env dev

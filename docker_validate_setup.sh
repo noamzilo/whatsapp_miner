@@ -6,12 +6,12 @@
 set -euo pipefail
 
 # Parse arguments
-ENVIRONMENT="dev"  # Default to dev
+ENV_NAME="dev"  # Default to dev
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --env)
-            ENVIRONMENT="$2"
+            ENV_NAME="$2"
             shift 2
             ;;
         *)
@@ -23,12 +23,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate environment
-if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prd" ]]; then
-    echo "❌ Error: Invalid environment '$ENVIRONMENT'. Must be dev or prd"
+if [[ "$ENV_NAME" != "dev" && "$ENV_NAME" != "prd" ]]; then
+    echo "❌ Error: Invalid environment '$ENV_NAME'. Must be dev or prd"
     exit 1
 fi
 
-echo "🧪 Validating deployment setup for environment: $ENVIRONMENT..."
+echo "🧪 Validating deployment setup for environment: $ENV_NAME..."
 
 # Test 1: Check if all required scripts exist
 echo "📋 Checking required scripts..."
@@ -80,10 +80,10 @@ cat > "$TEMP_ENV" << EOF
 DOCKER_IMAGE_NAME_WHATSAPP_MINER=dummy/image:latest
 DOCKER_CONTAINER_NAME_WHATSAPP_MINER=dummy_container
 ENV_FILE=$TEMP_ENV
-ENV_NAME=$ENVIRONMENT
+ENV_NAME=$ENV_NAME
 EOF
 
-if ENV_FILE="$TEMP_ENV" ENV_NAME="$ENVIRONMENT" docker compose config --quiet; then
+if ENV_FILE="$TEMP_ENV" ENV_NAME="$ENV_NAME" docker compose config --quiet; then
     echo "   ✅ docker-compose.yml is valid"
 else
     echo "   ❌ docker-compose.yml has syntax errors"
@@ -121,12 +121,12 @@ else
 fi
 
 # Test 8: Check if database connection works for the specified environment
-echo "🔌 Testing database connection for environment: $ENVIRONMENT..."
+echo "🔌 Testing database connection for environment: $ENV_NAME..."
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     echo "   ✅ Running in GitHub Actions - database connection will be tested during deployment"
 elif command -v doppler &> /dev/null; then
     # Map environment to Doppler config
-    case "$ENVIRONMENT" in
+    case "$ENV_NAME" in
         "dev")
             DOPPLER_CONFIG="dev_personal"
             ;;
@@ -139,16 +139,23 @@ elif command -v doppler &> /dev/null; then
     # Try direct alembic first, then poetry run alembic
     if command -v alembic &> /dev/null; then
         if doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- alembic current &> /dev/null; then
-            echo "   ✅ $ENVIRONMENT database connection works"
+            echo "   ✅ $ENV_NAME database connection works"
         else
-            echo "   ❌ $ENVIRONMENT database connection failed"
+            echo "   ❌ $ENV_NAME database connection failed"
             exit 1
         fi
     elif command -v poetry &> /dev/null && poetry run alembic --version &> /dev/null; then
         if doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- poetry run alembic current &> /dev/null; then
-            echo "   ✅ $ENVIRONMENT database connection works"
+            echo "   ✅ $ENV_NAME database connection works"
         else
-            echo "   ❌ $ENVIRONMENT database connection failed"
+            echo "   ❌ $ENV_NAME database connection failed"
+            exit 1
+        fi
+    elif command -v poetry &> /dev/null && poetry run alembic --version &> /dev/null; then
+        if doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- poetry run alembic current &> /dev/null; then
+            echo "   ✅ $ENV_NAME database connection works"
+        else
+            echo "   ❌ $ENV_NAME database connection failed"
             exit 1
         fi
     else
@@ -160,11 +167,11 @@ else
 fi
 
 echo ""
-echo "🎉 All deployment setup validation passed for environment: $ENVIRONMENT!"
+echo "🎉 All deployment setup validation passed for environment: $ENV_NAME!"
 echo ""
 echo "📚 Usage:"
-echo "   Local deployment: ./docker_deploy_with_doppler.sh --env $ENVIRONMENT"
-echo "   Local run only:   ./docker_run.sh --env $ENVIRONMENT"
-echo "   Remote deployment: ./docker_run.sh --env $ENVIRONMENT --remote"
-echo "   Run migrations:   ./run_migrations.sh --env $ENVIRONMENT"
+echo "   Local deployment: ./docker_deploy_with_doppler.sh --env $ENV_NAME"
+echo "   Local run only:   ./docker_run.sh --env $ENV_NAME"
+echo "   Remote deployment: ./docker_run.sh --env $ENV_NAME --remote"
+echo "   Run migrations:   ./run_migrations.sh --env $ENV_NAME"
 echo "" 
