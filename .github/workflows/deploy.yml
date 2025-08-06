@@ -3,55 +3,54 @@ name: Deploy Miner
 on:
   workflow_dispatch:
   push:
-    branches: [main, dev]
+    branches: [ main, dev ]
 
 jobs:
-#────────────────────────────────────────────────────────────
-# Decide which logical environment (dev|prd) we’re deploying
-#────────────────────────────────────────────────────────────
-  set-env:
+  #───────────────────────────── decide dev|prd ──────────────────────────────
+  env-name:
     runs-on: ubuntu-latest
     outputs:
-      environment: ${{ steps.pick.outputs.environment }}
+      env: ${{ steps.pick.outputs.env }}
     steps:
       - id: pick
         run: |
-          BRANCH="${GITHUB_REF##*/}"
-          if   [[ "$BRANCH" == "main" ]];  then echo "environment=prd" >>"$GITHUB_OUTPUT"
-          else                              echo "environment=dev"  >>"$GITHUB_OUTPUT"
-          fi
+          branch="${GITHUB_REF##*/}"
+          [[ "$branch" == "main" ]] && echo "env=prd" >>"$GITHUB_OUTPUT" || echo "env=dev" >>"$GITHUB_OUTPUT"
 
-#────────────────────────────────────────────────────────────
-# Build, push and run the container
-#────────────────────────────────────────────────────────────
+  #──────────────────────── deployment ───────────────────────────────────────
   deploy:
-    needs: set-env
+    needs: env-name
     runs-on: ubuntu-latest
-    environment: ${{ needs.set-env.outputs.environment }}
+    environment: ${{ needs.env-name.outputs.env }}
 
     steps:
-      - uses: actions/checkout@v4
+    # ── checkout ────────────────────────────────────────────────────────────
+    - uses: actions/checkout@v4
 
-      # 📦 Bundle **all** repository / environment secrets ➜ DEPLOY_ENV_B64
-      - name: Pack secrets
-        id: bundle
-        env:
-          RAW_JSON: ${{ toJson(secrets) }}   # every secret, one shot
-        run: |
-          echo "::add-mask::$RAW_JSON"       # keep log clean
-          DEPLOY_ENV_B64=$(printf '%s' "$RAW_JSON" | base64 -w0)
-          echo "DEPLOY_ENV_B64=$DEPLOY_ENV_B64" >> "$GITHUB_ENV"
+    # ── create base-64 secret bundle ────────────────────────────────────────
+    - name: Pack secrets into DEPLOY_ENV_B64
+      id: pack
+      shell: bash
+      env:
+        RAW_JSON: ${{ toJson(secrets) }}
+      run: |
+        b64=$(printf '%s' "$RAW_JSON" | base64 -w0)
+        echo "::add-mask::$b64"      # mask value in logs
+        echo "b64=$b64" >>"$GITHUB_OUTPUT"
 
-      - uses: actions/setup-python@v4
-        with: { python-version: "3.11" }
+    # ── set up Python tiny deps (for jq & scripts) ──────────────────────────
+    - uses: actions/setup-python@v4
+      with: { python-version: '3.11' }
 
-      - name: Tiny runtime deps
-        run: sudo apt-get -yq update && sudo apt-get -yq install jq
+    - run: sudo apt-get -qq update && sudo apt-get -qq install -y jq
 
-      - name: Make scripts executable
-        run: chmod +x docker_*.sh
+    - name: Make scripts executable
+      run: chmod +x docker_*.sh
 
-      - name: Run deployment
-        env:
-          DEPLOY_ENV_B64: ${{ env.DEPLOY_ENV_B64 }}
-        run: ./docker_deploy.sh --env "${{ needs.set-env.outputs.environment }}"
+    # ── run deployment script with blob flag ────────────────────────────────
+    - name: Run deployment
+      env: { CI: "true" }   # example extra flags if you need them
+      run: |
+        ./docker_deploy.sh \
+            --env      "${{ needs.env-name.outputs.env }}" \
+            --secrets-b64 "${{ steps.pack.outputs.b64 }}"
