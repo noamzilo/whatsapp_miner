@@ -3,159 +3,55 @@ name: Deploy Miner
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
-      - dev
+    branches: [main, dev]
 
 jobs:
+#────────────────────────────────────────────────────────────
+# Decide which logical environment (dev|prd) we’re deploying
+#────────────────────────────────────────────────────────────
   set-env:
     runs-on: ubuntu-latest
     outputs:
-      environment: ${{ steps.setenv.outputs.env }}
+      environment: ${{ steps.pick.outputs.environment }}
     steps:
-      - id: setenv
+      - id: pick
         run: |
-          # Environment agnostic approach - use branch name or default to dev
-          BRANCH_NAME="${GITHUB_REF##*/}"
-          if [[ "$BRANCH_NAME" == "main" ]]; then
-            echo "env=prd" >> $GITHUB_OUTPUT
-          else
-            echo "env=dev" >> $GITHUB_OUTPUT
+          BRANCH="${GITHUB_REF##*/}"
+          if   [[ "$BRANCH" == "main" ]];  then echo "environment=prd" >>"$GITHUB_OUTPUT"
+          else                              echo "environment=dev"  >>"$GITHUB_OUTPUT"
           fi
 
+#────────────────────────────────────────────────────────────
+# Build, push and run the container
+#────────────────────────────────────────────────────────────
   deploy:
-    runs-on: ubuntu-latest
     needs: set-env
+    runs-on: ubuntu-latest
     environment: ${{ needs.set-env.outputs.environment }}
-    env:
-      # All environment variables are provided by GitHub Actions secrets
-      # The scripts will handle environment detection internally
-      AWS_EC2_HOST_ADDRESS: ${{ secrets.AWS_EC2_HOST_ADDRESS }}
-      AWS_EC2_PEM_CHATBOT_SA_B64: ${{ secrets.AWS_EC2_PEM_CHATBOT_SA_B64 }}
-      AWS_EC2_REGION: ${{ secrets.AWS_EC2_REGION }}
-      AWS_EC2_USERNAME: ${{ secrets.AWS_EC2_USERNAME }}
-      AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER: ${{ secrets.AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER }}
-      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY: ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY }}
-      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID: ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID }}
-      DOCKER_CONTAINER_NAME_WHATSAPP_MINER: ${{ secrets.DOCKER_CONTAINER_NAME_WHATSAPP_MINER }}
-      DOCKER_IMAGE_NAME_WHATSAPP_MINER: ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}
-      GREEN_API_INSTANCE_API_TOKEN: ${{ secrets.GREEN_API_INSTANCE_API_TOKEN }}
-      GREEN_API_INSTANCE_ID: ${{ secrets.GREEN_API_INSTANCE_ID }}
-      SUPABASE_DATABASE_CONNECTION_STRING: ${{ secrets.SUPABASE_DATABASE_CONNECTION_STRING }}
-      SUPABASE_DATABASE_PASSWORD: ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
-      MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS: ${{ secrets.MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS }}
-      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
 
     steps:
-      - name: 🔍 Inline Environment Verification
+      - uses: actions/checkout@v4
+
+      # 📦 Bundle **all** repository / environment secrets ➜ DEPLOY_ENV_B64
+      - name: Pack secrets
+        id: bundle
+        env:
+          RAW_JSON: ${{ toJson(secrets) }}   # every secret, one shot
         run: |
-          echo "🔍 Verifying environment variables are properly set..."
-          
-          # Check if variables are empty or contain placeholder values
-          empty_vars=""
-          for var in \
-            AWS_EC2_HOST_ADDRESS \
-            AWS_EC2_PEM_CHATBOT_SA_B64 \
-            AWS_EC2_REGION \
-            AWS_EC2_USERNAME \
-            AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER \
-            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY \
-            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID \
-            DOCKER_CONTAINER_NAME_WHATSAPP_MINER \
-            DOCKER_IMAGE_NAME_WHATSAPP_MINER \
-            GREEN_API_INSTANCE_API_TOKEN \
-            GREEN_API_INSTANCE_ID \
-            MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS \
-            GROQ_API_KEY
-          do
-            value="${!var}"
-            if [[ -z "$value" ]]; then
-              echo "❌ Empty: $var"
-              empty_vars="$empty_vars $var"
-            elif [[ "$value" == *"secrets."* ]]; then
-              echo "❌ Placeholder: $var (contains template syntax)"
-              empty_vars="$empty_vars $var"
-            elif [[ "$value" == "***" ]]; then
-              echo "❌ Masked: $var (contains ***)"
-              empty_vars="$empty_vars $var"
-            else
-              echo "✅ Valid: $var (length: ${#value})"
-            fi
-          done
-          
-          if [[ -n "$empty_vars" ]]; then
-            echo ""
-            echo "❌ Environment verification failed! Empty or invalid variables: $empty_vars"
-            echo "   Please check your GitHub repository secrets configuration."
-            exit 1
-          fi
-          
-          echo ""
-          echo "✅ All environment variables are properly set!"
-          
-          # Test AWS credentials format
-          echo ""
-          echo "🔐 Testing AWS credentials format..."
-          if [[ "${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID}" =~ ^[A-Z0-9]{20}$ ]]; then
-            echo "✅ AWS Access Key ID format is valid"
-          else
-            echo "❌ AWS Access Key ID format is invalid (should be 20 characters)"
-            exit 1
-          fi
-          
-          if [[ "${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY}" =~ ^[A-Za-z0-9+/]{40}$ ]]; then
-            echo "✅ AWS Secret Access Key format is valid"
-          else
-            echo "❌ AWS Secret Access Key format is invalid (should be 40 characters)"
-            exit 1
-          fi
-          
-          echo "✅ AWS credentials format verification passed!"
+          echo "::add-mask::$RAW_JSON"       # keep log clean
+          DEPLOY_ENV_B64=$(printf '%s' "$RAW_JSON" | base64 -w0)
+          echo "DEPLOY_ENV_B64=$DEPLOY_ENV_B64" >> "$GITHUB_ENV"
 
-      - name: ✅ Check required secrets
-        run: |
-          missing=""
-          for var in \
-            AWS_EC2_HOST_ADDRESS \
-            AWS_EC2_PEM_CHATBOT_SA_B64 \
-            AWS_EC2_REGION \
-            AWS_EC2_USERNAME \
-            AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER \
-            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY \
-            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID \
-            DOCKER_CONTAINER_NAME_WHATSAPP_MINER \
-            DOCKER_IMAGE_NAME_WHATSAPP_MINER \
-            GREEN_API_INSTANCE_API_TOKEN \
-            GREEN_API_INSTANCE_ID \
-            MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS \
-            GROQ_API_KEY
-          do
-            if [[ -z "${!var:-}" ]]; then
-              echo "❌ Missing: $var"
-              missing=1
-            fi
-          done
-          if [[ -n "$missing" ]]; then
-            echo "❌ One or more required secrets are missing. Aborting."
-            exit 1
-          else
-            echo "✅ All required secrets are present."
-          fi
+      - uses: actions/setup-python@v4
+        with: { python-version: "3.11" }
 
-      - name: Checkout Repo
-        uses: actions/checkout@v4
+      - name: Tiny runtime deps
+        run: sudo apt-get -yq update && sudo apt-get -yq install jq
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          pip install alembic psycopg2-binary
-
-      - name: Make deploy scripts executable
+      - name: Make scripts executable
         run: chmod +x docker_*.sh
 
-      - name: Run Deployment Script
-        run: ./docker_deploy.sh --env ${{ needs.set-env.outputs.environment }}
+      - name: Run deployment
+        env:
+          DEPLOY_ENV_B64: ${{ env.DEPLOY_ENV_B64 }}
+        run: ./docker_deploy.sh --env "${{ needs.set-env.outputs.environment }}"

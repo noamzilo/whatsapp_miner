@@ -1,89 +1,61 @@
 #!/usr/bin/env bash
-# docker_deploy.sh
-# Build, push, run migrations, and restart the container on the remote host.
-# Usage: ./docker_deploy.sh [--env dev|prd]
+# Build, push, migrate & start the stack (both CI & local)
+
 set -euo pipefail
 
-# Parse arguments
-ENVIRONMENT="dev"  # Default to dev
-
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        --env)
-            ENVIRONMENT="$2"
-            shift 2
-            ;;
-        *)
-            echo "Unknown option: $1"
-            echo "Usage: $0 [--env dev|prd]"
-            exit 1
-            ;;
-    esac
-done
-
-# Validate environment
-if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prd" ]]; then
-    echo "❌ Error: Invalid environment '$ENVIRONMENT'. Must be dev or prd"
-    exit 1
+########## 1.  Un-bundle secrets (if provided) ############################
+if [[ -n "${DEPLOY_ENV_B64:-}" ]]; then
+    tmp_json=$(mktemp)
+    printf '%s' "$DEPLOY_ENV_B64" | base64 -d >"$tmp_json"
+    # turn JSON → KEY=value lines → export
+    while IFS='=' read -r k v; do export "$k"="$v"; done \
+        < <(jq -r 'to_entries|map("\(.key)=\(.value|tostring)")|.[]' "$tmp_json")
+    rm -f "$tmp_json"
 fi
+###########################################################################
 
+########## 2.  Parse CLI --------------------------------------------------
+ENVIRONMENT=dev
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --env) ENVIRONMENT="$2"; shift 2;;
+    *) echo "Usage: $0 --env dev|prd"; exit 1;;
+  esac
+done
+[[ "$ENVIRONMENT" =~ ^(dev|prd)$ ]] || { echo "❌ bad env"; exit 1; }
 echo "🌍 Environment: $ENVIRONMENT"
 
+########## 3.  Guard – we expect these to be present now ------------------
 : "${AWS_EC2_REGION:?}"
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?}"
 
-# Map IAM → AWS CLI (works for both Doppler and GitHub Actions)
+# map AWS creds for CLI
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
-
-# Map region variable (works for both Doppler and GitHub Actions)
 export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$AWS_EC2_REGION}"
 
-# Validate deployment setup before starting
+########## 4.  Business as before ----------------------------------------
 echo "🔍 Validating deployment setup..."
 ./docker_validate_setup.sh --env "$ENVIRONMENT"
 
-# Build and push image (ECR authentication is now handled in docker_build.sh)
-echo "🔨 Building and pushing image..."
+echo "🔨 Building & pushing image..."
 ./docker_build.sh --env "$ENVIRONMENT" --push
-
-# Get the environment-specific image name that was exported by docker_build.sh
 ENV_SPECIFIC_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER_ENV:-$DOCKER_IMAGE_NAME_WHATSAPP_MINER}"
-
-# Get the image digest for verification (try environment-specific first, then fallback to base)
-NEW_IMAGE_DIGEST="$(docker images --digests --format "table {{.Repository}}:{{.Tag}}\t{{.Digest}}" | grep "$ENV_SPECIFIC_IMAGE_NAME" | awk '{print $2}' || docker images --digests --format "table {{.Repository}}:{{.Tag}}\t{{.Digest}}" | grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}')"
+NEW_IMAGE_DIGEST="$(docker images --digests --format 'table {{.Repository}}:{{.Tag}}\t{{.Digest}}' | grep "$ENV_SPECIFIC_IMAGE_NAME" | awk '{print $2}')"
 echo "📦 New image digest: $NEW_IMAGE_DIGEST"
-echo "📦 Environment-specific image: $ENV_SPECIFIC_IMAGE_NAME"
 
-# Store digest in a file for verification (avoid exporting invalid variable names)
-DIGEST_FILE="/tmp/whatsapp_miner_digest.$RANDOM"
-echo "$NEW_IMAGE_DIGEST" > "$DIGEST_FILE"
+DIGEST_FILE="$(mktemp)"
+echo "$NEW_IMAGE_DIGEST" >"$DIGEST_FILE"
 export DIGEST_FILE_PATH="$DIGEST_FILE"
 
-# Run migrations for the specified environment
-echo "🗄️  Running database migrations for environment: $ENVIRONMENT"
+echo "🗄️  Running migrations…"
 ./run_migrations.sh --env "$ENVIRONMENT"
 
-# Deploy to remote
-echo "🚀 Deploying to remote host..."
-if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-    echo "🏗️  Running in GitHub Actions - using GitHub secrets"
-else
-    echo "🌪️  Running locally - using Doppler secrets"
-fi
+echo "🚀 Deploying…"
 ./docker_run.sh --env "$ENVIRONMENT" --remote
 
-# Show final status and verify deployment
-echo "📊 Final deployment status:"
+echo "📊 Final status:"
 ./docker_verify_deployment.sh --env "$ENVIRONMENT"
+rm -f "$DIGEST_FILE_PATH"
 
-# Clean up digest file
-if [[ -n "${DIGEST_FILE_PATH:-}" && -f "$DIGEST_FILE_PATH" ]]; then
-    rm -f "$DIGEST_FILE_PATH"
-fi
-
-echo ""
-echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"
-echo "   Environment: $ENVIRONMENT"
-echo "   New image digest: $NEW_IMAGE_DIGEST"
-echo ""
+echo -e "\n✅ Deployment complete ($ENVIRONMENT)\n"
