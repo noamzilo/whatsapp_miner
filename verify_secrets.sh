@@ -42,6 +42,7 @@ fi
 
 # Define required environment variables
 required_vars=(
+  "ENV_NAME"
   "AWS_EC2_HOST_ADDRESS"
   "AWS_EC2_PEM_CHATBOT_SA_B64"
   "AWS_EC2_REGION"

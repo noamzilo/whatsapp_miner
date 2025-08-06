@@ -51,37 +51,39 @@ jobs:
         run: |
           # build one JSON object from exactly those env keys
           jq -n \
-            --arg a "$AWS_EC2_HOST_ADDRESS" \
-            --arg b "$AWS_EC2_PEM_CHATBOT_SA_B64" \
-            --arg c "$AWS_EC2_REGION" \
-            --arg d "$AWS_EC2_USERNAME" \
-            --arg e "$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER" \
-            --arg f "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY" \
-            --arg g "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID" \
-            --arg h "$DOCKER_CONTAINER_NAME_WHATSAPP_MINER" \
-            --arg i "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" \
-            --arg j "$GREEN_API_INSTANCE_API_TOKEN" \
-            --arg k "$GREEN_API_INSTANCE_ID" \
-            --arg l "$SUPABASE_DATABASE_CONNECTION_STRING" \
-            --arg m "$SUPABASE_DATABASE_PASSWORD" \
-            --arg n "$MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS" \
-            --arg o "$GROQ_API_KEY" \
+            --arg a "$ENV_NAME" \
+            --arg b "$AWS_EC2_HOST_ADDRESS" \
+            --arg c "$AWS_EC2_PEM_CHATBOT_SA_B64" \
+            --arg d "$AWS_EC2_REGION" \
+            --arg e "$AWS_EC2_USERNAME" \
+            --arg f "$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER" \
+            --arg g "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY" \
+            --arg h "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID" \
+            --arg i "$DOCKER_CONTAINER_NAME_WHATSAPP_MINER" \
+            --arg j "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" \
+            --arg k "$GREEN_API_INSTANCE_API_TOKEN" \
+            --arg l "$GREEN_API_INSTANCE_ID" \
+            --arg m "$SUPABASE_DATABASE_CONNECTION_STRING" \
+            --arg n "$SUPABASE_DATABASE_PASSWORD" \
+            --arg o "$MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS" \
+            --arg p "$GROQ_API_KEY" \
             '{ 
-              AWS_EC2_HOST_ADDRESS:         $a,
-              AWS_EC2_PEM_CHATBOT_SA_B64:   $b,
-              AWS_EC2_REGION:               $c,
-              AWS_EC2_USERNAME:             $d,
-              AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER: $e,
-              AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:        $f,
-              AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:     $g,
-              DOCKER_CONTAINER_NAME_WHATSAPP_MINER:     $h,
-              DOCKER_IMAGE_NAME_WHATSAPP_MINER:         $i,
-              GREEN_API_INSTANCE_API_TOKEN:             $j,
-              GREEN_API_INSTANCE_ID:                    $k,
-              SUPABASE_DATABASE_CONNECTION_STRING:      $l,
-              SUPABASE_DATABASE_PASSWORD:               $m,
-              MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS:     $n,
-              GROQ_API_KEY:                             $o
+              ENV_NAME:                                $a,
+              AWS_EC2_HOST_ADDRESS:                    $b,
+              AWS_EC2_PEM_CHATBOT_SA_B64:             $c,
+              AWS_EC2_REGION:                          $d,
+              AWS_EC2_USERNAME:                        $e,
+              AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER: $f,
+              AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:       $g,
+              AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:    $h,
+              DOCKER_CONTAINER_NAME_WHATSAPP_MINER:    $i,
+              DOCKER_IMAGE_NAME_WHATSAPP_MINER:        $j,
+              GREEN_API_INSTANCE_API_TOKEN:            $k,
+              GREEN_API_INSTANCE_ID:                   $l,
+              SUPABASE_DATABASE_CONNECTION_STRING:     $m,
+              SUPABASE_DATABASE_PASSWORD:              $n,
+              MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS:    $o,
+              GROQ_API_KEY:                            $p
             }' \
           | base64 -w0 \
           > secrets.b64

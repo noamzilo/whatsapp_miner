@@ -19,10 +19,11 @@ fi
 unquote_doppler_vars
 
 echo "✅ Running in Doppler context: $DOPPLER_PROJECT/$DOPPLER_CONFIG"
-echo "🌍 Environment: ${ENVIRONMENT:-dev}"
+echo "🌍 Environment: ${ENV_NAME:-dev}"
 
 # ── 2. Required Doppler keys must exist ─────────────────────────────────────
 required_vars=(
+	ENV_NAME
 	DOCKER_IMAGE_NAME_WHATSAPP_MINER
 	AWS_EC2_REGION
 	AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID
@@ -65,4 +66,4 @@ export ENV_FILE    # read by docker-compose.yml
 
 # ── 6. Delegate to core runner ──────────────────────────────────────────────
 echo "🚀 Starting docker core runner..."
-./docker_run_core.sh
+./docker_run_core.sh --env "${ENV_NAME:-dev}"

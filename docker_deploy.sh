@@ -60,7 +60,7 @@ echo "🗄️  Running migrations…"
 ./run_migrations.sh
 
 echo "🚀 Deploying to remote host…"
-./docker_run.sh --remote
+./docker_run.sh --env "$ENV_NAME" --remote
 
 echo "📊 Final status:"
 ./docker_verify_deployment.sh

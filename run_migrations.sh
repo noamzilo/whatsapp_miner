@@ -6,11 +6,11 @@
 set -euo pipefail
 
 # Parse arguments
-ENVIRONMENT=""
+ENV_NAME=""
 while [[ $# -gt 0 ]]; do
     case $1 in
         --env)
-            ENVIRONMENT="$2"
+            ENV_NAME="$2"
             shift 2
             ;;
         *)
@@ -22,18 +22,18 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate environment
-if [[ -z "$ENVIRONMENT" ]]; then
+if [[ -z "$ENV_NAME" ]]; then
     echo "❌ Error: --env parameter is required"
     echo "Usage: $0 --env dev|prd"
     exit 1
 fi
 
-if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prd" ]]; then
-    echo "❌ Error: Invalid environment '$ENVIRONMENT'. Must be dev or prd"
+if [[ "$ENV_NAME" != "dev" && "$ENV_NAME" != "prd" ]]; then
+    echo "❌ Error: Invalid environment '$ENV_NAME'. Must be dev or prd"
     exit 1
 fi
 
-echo "🗄️  Running database migrations for environment: $ENVIRONMENT"
+echo "🗄️  Running database migrations for environment: $ENV_NAME"
 
 # Check if we're in GitHub Actions or local environment
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
@@ -42,14 +42,14 @@ if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
     : "${SUPABASE_DATABASE_CONNECTION_STRING:?}"
     
     # Run migrations for the specified environment
-    echo "🔄 Running migrations for $ENVIRONMENT database..."
+    echo "🔄 Running migrations for $ENV_NAME database..."
     alembic upgrade head
     
 else
     echo "🌪️  Running migrations locally with Doppler"
     
     # Map environment to Doppler config
-    case "$ENVIRONMENT" in
+    case "$ENV_NAME" in
         "dev")
             DOPPLER_CONFIG="dev_personal"
             ;;
@@ -58,8 +58,8 @@ else
             ;;
     esac
     
-    echo "🔄 Running migrations for $ENVIRONMENT database (Doppler config: $DOPPLER_CONFIG)..."
+    echo "🔄 Running migrations for $ENV_NAME database (Doppler config: $DOPPLER_CONFIG)..."
     doppler run --project whatsapp_miner_backend --config "$DOPPLER_CONFIG" -- poetry run alembic upgrade head
 fi
 
-echo "✅ Database migrations completed successfully for environment: $ENVIRONMENT" 
+echo "✅ Database migrations completed successfully for environment: $ENV_NAME" 
