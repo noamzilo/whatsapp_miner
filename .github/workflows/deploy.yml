@@ -15,12 +15,12 @@ jobs:
     steps:
       - id: setenv
         run: |
-          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+          # Environment agnostic approach - use branch name or default to dev
+          BRANCH_NAME="${GITHUB_REF##*/}"
+          if [[ "$BRANCH_NAME" == "main" ]]; then
             echo "env=prd" >> $GITHUB_OUTPUT
-          elif [[ "${GITHUB_REF##*/}" == "dev" ]]; then
-            echo "env=dev" >> $GITHUB_OUTPUT
           else
-            echo "env=dev" >> $GITHUB_OUTPUT  # fallback
+            echo "env=dev" >> $GITHUB_OUTPUT
           fi
 
   deploy:

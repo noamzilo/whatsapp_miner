@@ -73,7 +73,7 @@ fi
 
 # Show final status and verify deployment
 echo "📊 Final deployment status:"
-./docker_show_status.sh --env "$ENVIRONMENT"
+./docker_verify_deployment.sh --env "$ENVIRONMENT"
 echo ""
 echo "🚀✅ DONE: WhatsApp Miner deployment completed successfully ✅🚀"
 echo "   Environment: $ENVIRONMENT"
