@@ -5,134 +5,107 @@ on:
   push:
     branches: [ main, dev ]
 
-##############################################################################
-# 1.  Decide deployment environment name (dev ↔︎ prd)
-##############################################################################
 jobs:
-  set-env:
+  # ────────────────────────── 1. pack & deploy ─────────────────────────────
+  deploy:
     runs-on: ubuntu-latest
-    outputs:
-      env_name: ${{ steps.pick.outputs.env }}
+
+    # ▸▸▸  explicitly expose only the secrets you want to pack  ▸▸▸
+    env:
+      ENV_NAME:                                 ${{ secrets.ENV_NAME }}
+      AWS_EC2_HOST_ADDRESS:                     ${{ secrets.AWS_EC2_HOST_ADDRESS }}
+      AWS_EC2_PEM_CHATBOT_SA_B64:               ${{ secrets.AWS_EC2_PEM_CHATBOT_SA_B64 }}
+      AWS_EC2_REGION:                           ${{ secrets.AWS_EC2_REGION }}
+      AWS_EC2_USERNAME:                         ${{ secrets.AWS_EC2_USERNAME }}
+      AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER: ${{ secrets.AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER }}
+      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:        ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY }}
+      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:     ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID }}
+      DOCKER_CONTAINER_NAME_WHATSAPP_MINER:     ${{ secrets.DOCKER_CONTAINER_NAME_WHATSAPP_MINER }}
+      DOCKER_IMAGE_NAME_WHATSAPP_MINER:         ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}
+      GREEN_API_INSTANCE_API_TOKEN:             ${{ secrets.GREEN_API_INSTANCE_API_TOKEN }}
+      GREEN_API_INSTANCE_ID:                    ${{ secrets.GREEN_API_INSTANCE_ID }}
+      SUPABASE_DATABASE_CONNECTION_STRING:      ${{ secrets.SUPABASE_DATABASE_CONNECTION_STRING }}
+      SUPABASE_DATABASE_PASSWORD:               ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
+      MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS:     ${{ secrets.MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS }}
+      GROQ_API_KEY:                             ${{ secrets.GROQ_API_KEY }}
+
     steps:
-      - id: pick
+      # ────── (a) checkout ──────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ────── (b) setup a real Python ──────
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # ────── (c) jq for JSON manipulation ──────
+      - name: Install jq
+        run: sudo apt-get update -qq && sudo apt-get install -y jq
+
+      # ────── (d) pack secrets → single JSON → base64 ──────
+      - name: Pack secrets into Base64 blob
+        id: pack
         shell: bash
         run: |
-          BRANCH="${GITHUB_REF##*/}"
-          if [[ "$BRANCH" == main ]]; then
-            echo 'env=prd' >>"$GITHUB_OUTPUT"
-          else
-            echo 'env=dev'  >>"$GITHUB_OUTPUT"
-          fi
+          # build one JSON object from exactly those env keys
+          jq -n \
+            --arg a "$AWS_EC2_HOST_ADDRESS" \
+            --arg b "$AWS_EC2_PEM_CHATBOT_SA_B64" \
+            --arg c "$AWS_EC2_REGION" \
+            --arg d "$AWS_EC2_USERNAME" \
+            --arg e "$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER" \
+            --arg f "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY" \
+            --arg g "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID" \
+            --arg h "$DOCKER_CONTAINER_NAME_WHATSAPP_MINER" \
+            --arg i "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" \
+            --arg j "$GREEN_API_INSTANCE_API_TOKEN" \
+            --arg k "$GREEN_API_INSTANCE_ID" \
+            --arg l "$SUPABASE_DATABASE_CONNECTION_STRING" \
+            --arg m "$SUPABASE_DATABASE_PASSWORD" \
+            --arg n "$MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS" \
+            --arg o "$GROQ_API_KEY" \
+            '{ 
+              AWS_EC2_HOST_ADDRESS:         $a,
+              AWS_EC2_PEM_CHATBOT_SA_B64:   $b,
+              AWS_EC2_REGION:               $c,
+              AWS_EC2_USERNAME:             $d,
+              AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER: $e,
+              AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:        $f,
+              AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:     $g,
+              DOCKER_CONTAINER_NAME_WHATSAPP_MINER:     $h,
+              DOCKER_IMAGE_NAME_WHATSAPP_MINER:         $i,
+              GREEN_API_INSTANCE_API_TOKEN:             $j,
+              GREEN_API_INSTANCE_ID:                    $k,
+              SUPABASE_DATABASE_CONNECTION_STRING:      $l,
+              SUPABASE_DATABASE_PASSWORD:               $m,
+              MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS:     $n,
+              GROQ_API_KEY:                             $o
+            }' \
+          | base64 -w0 \
+          > secrets.b64
 
-##############################################################################
-# 2.  Pack listed secrets → one base-64 blob and call docker_deploy.sh
-##############################################################################
-  deploy:
-    needs: set-env
-    runs-on: ubuntu-latest
-    environment: ${{ needs.set-env.outputs.env_name }}
+          B64=$(<secrets.b64)
+          echo "::add-mask::$B64"
+          echo "blob=$B64" >>"$GITHUB_OUTPUT"
 
-    # ‣‣‣ explicit list of repo secrets (no wild-cards)
-    env:
-      AWS_EC2_HOST_ADDRESS:                       ${{ secrets.AWS_EC2_HOST_ADDRESS }}
-      AWS_EC2_PEM_CHATBOT_SA_B64:                 ${{ secrets.AWS_EC2_PEM_CHATBOT_SA_B64 }}
-      AWS_EC2_REGION:                             ${{ secrets.AWS_EC2_REGION }}
-      AWS_EC2_USERNAME:                           ${{ secrets.AWS_EC2_USERNAME }}
-      AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:   ${{ secrets.AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER }}
-      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:          ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY }}
-      AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:       ${{ secrets.AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID }}
-      DOCKER_CONTAINER_NAME_WHATSAPP_MINER:       ${{ secrets.DOCKER_CONTAINER_NAME_WHATSAPP_MINER }}
-      DOCKER_IMAGE_NAME_WHATSAPP_MINER:           ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}
-      GREEN_API_INSTANCE_API_TOKEN:               ${{ secrets.GREEN_API_INSTANCE_API_TOKEN }}
-      GREEN_API_INSTANCE_ID:                      ${{ secrets.GREEN_API_INSTANCE_ID }}
-      SUPABASE_DATABASE_CONNECTION_STRING:        ${{ secrets.SUPABASE_DATABASE_CONNECTION_STRING }}
-      SUPABASE_DATABASE_PASSWORD:                 ${{ secrets.SUPABASE_DATABASE_PASSWORD }}
-      MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS:       ${{ secrets.MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS }}
-      GROQ_API_KEY:                               ${{ secrets.GROQ_API_KEY }}
+      # ────── (e) verify secrets bundle ──────
+      - name: Verify secrets bundle
+        run: |
+          chmod +x verify_secrets.sh
+          ./verify_secrets.sh --secrets-b64 "${{ steps.pack.outputs.blob }}"
 
-    steps:
-    # (a) checkout code ------------------------------------------------------
-    - uses: actions/checkout@v4
+      # ────── (f) make your scripts runnable ──────
+      - name: Make deploy scripts executable
+        run: chmod +x docker_*.sh
 
-    # (b) jq for JSON packing ------------------------------------------------
-    - name: Install jq
-      run: sudo apt-get update -qq && sudo apt-get install -y jq
+      # ────── (g) tiny runtime Python deps for your scripts ──────
+      - name: Tiny Python runtime deps
+        run: pip install -q alembic psycopg2-binary
 
-    # (c) pack all env-vars above → base-64 blob -----------------------------
-    - name: Pack secrets into base64 blob
-      id: pack
-      shell: bash
-      run: |
-        # Keys we exported in the env: block (keep in sync!)
-        keys=(
-          AWS_EC2_HOST_ADDRESS
-          AWS_EC2_PEM_CHATBOT_SA_B64
-          AWS_EC2_REGION
-          AWS_EC2_USERNAME
-          AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER
-          AWS_IAM_WHATSAPP_MINER_ACCESS_KEY
-          AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID
-          DOCKER_CONTAINER_NAME_WHATSAPP_MINER
-          DOCKER_IMAGE_NAME_WHATSAPP_MINER
-          GREEN_API_INSTANCE_API_TOKEN
-          GREEN_API_INSTANCE_ID
-          SUPABASE_DATABASE_CONNECTION_STRING
-          SUPABASE_DATABASE_PASSWORD
-          MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS
-          GROQ_API_KEY
-        )
-
-        # Build JSON in one jq invocation (no syntax errors!)
-        json=$(jq -n \
-          --arg AWS_EC2_HOST_ADDRESS "$AWS_EC2_HOST_ADDRESS" \
-          --arg AWS_EC2_PEM_CHATBOT_SA_B64 "$AWS_EC2_PEM_CHATBOT_SA_B64" \
-          --arg AWS_EC2_REGION "$AWS_EC2_REGION" \
-          --arg AWS_EC2_USERNAME "$AWS_EC2_USERNAME" \
-          --arg AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER "$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER" \
-          --arg AWS_IAM_WHATSAPP_MINER_ACCESS_KEY "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY" \
-          --arg AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID" \
-          --arg DOCKER_CONTAINER_NAME_WHATSAPP_MINER "$DOCKER_CONTAINER_NAME_WHATSAPP_MINER" \
-          --arg DOCKER_IMAGE_NAME_WHATSAPP_MINER "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" \
-          --arg GREEN_API_INSTANCE_API_TOKEN "$GREEN_API_INSTANCE_API_TOKEN" \
-          --arg GREEN_API_INSTANCE_ID "$GREEN_API_INSTANCE_ID" \
-          --arg SUPABASE_DATABASE_CONNECTION_STRING "$SUPABASE_DATABASE_CONNECTION_STRING" \
-          --arg SUPABASE_DATABASE_PASSWORD "$SUPABASE_DATABASE_PASSWORD" \
-          --arg MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS "$MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS" \
-          --arg GROQ_API_KEY "$GROQ_API_KEY" \
-          '{
-            AWS_EC2_HOST_ADDRESS:                       $AWS_EC2_HOST_ADDRESS,
-            AWS_EC2_PEM_CHATBOT_SA_B64:                 $AWS_EC2_PEM_CHATBOT_SA_B64,
-            AWS_EC2_REGION:                             $AWS_EC2_REGION,
-            AWS_EC2_USERNAME:                           $AWS_EC2_USERNAME,
-            AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:   $AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER,
-            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:          $AWS_IAM_WHATSAPP_MINER_ACCESS_KEY,
-            AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:       $AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID,
-            DOCKER_CONTAINER_NAME_WHATSAPP_MINER:       $DOCKER_CONTAINER_NAME_WHATSAPP_MINER,
-            DOCKER_IMAGE_NAME_WHATSAPP_MINER:           $DOCKER_IMAGE_NAME_WHATSAPP_MINER,
-            GREEN_API_INSTANCE_API_TOKEN:               $GREEN_API_INSTANCE_API_TOKEN,
-            GREEN_API_INSTANCE_ID:                      $GREEN_API_INSTANCE_ID,
-            SUPABASE_DATABASE_CONNECTION_STRING:        $SUPABASE_DATABASE_CONNECTION_STRING,
-            SUPABASE_DATABASE_PASSWORD:                 $SUPABASE_DATABASE_PASSWORD,
-            MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS:       $MESSAGE_CLASSIFIER_RUN_EVERY_SECONDS,
-            GROQ_API_KEY:                               $GROQ_API_KEY
-          }')
-
-        blob=$(printf '%s' "$json" | base64 -w0)
-        echo "::add-mask::$blob"                 # hide in logs
-        echo "blob=$blob" >>"$GITHUB_OUTPUT"
-        echo "🔒 Packed $((${#blob})) bytes of secrets"
-
-    # (d) make deploy helper scripts runnable -------------------------------
-    - name: Make deploy scripts executable
-      run: chmod +x docker_*.sh
-
-    # (e) tiny python deps ---------------------------------------------------
-    - name: Tiny runtime python deps
-      run: pip install -q alembic psycopg2-binary
-
-    # (f) hand-off to your existing script ----------------------------------
-    - name: Run docker_deploy.sh
-      run: |
-        ./docker_deploy.sh \
-          --env "${{ needs.set-env.outputs.env_name }}" \
-          --secrets-b64 "${{ steps.pack.outputs.blob }}"
+      # ────── (h) fire off the real deploy, passing the blob ──────
+      - name: Run deployment
+        run: |
+          ./docker_deploy.sh \
+            --secrets-b64 "${{ steps.pack.outputs.blob }}"

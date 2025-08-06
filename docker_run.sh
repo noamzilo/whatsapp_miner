@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Parse arguments
-ENVIRONMENT="dev"  # Default to dev
+ENVIRONMENT="development"  # Default to development
 MODE="local"
 
 while [[ $# -gt 0 ]]; do
