@@ -42,27 +42,32 @@ export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
 
 This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login-password` and `docker login`.
 
-### 4. Doppler Integration
-- All secrets managed through either Doppler or github actions secrets
-- Wrapper scripts inject Doppler context
-- in Github actions, seccrets come through their system
-- Consistent variable unquoting across all scripts
-- all script use environment variables, and they shouldn't know how the environment is set.
+### 4. Environment Agnostic Core Scripts
+**CRITICAL**: The core scripts (`docker_build.sh`, `docker_deploy.sh`, `docker_run.sh`) are **completely environment agnostic**. They:
+- **Cannot be run directly** - they must be invoked through wrapper scripts
+- **Get all environment variables from wrapper scripts** - they don't know about Doppler vs GitHub Actions
+- **Expect environment variables to be already set** - no environment detection logic
+- **Work identically in all contexts** - local development, GitHub Actions, remote deployment
 
-### 4. Environment Awareness
-- **Only `docker_validate_setup.sh` is environment-aware** - Detects GitHub Actions vs local environment
-- **All other scripts are environment agnostic** - They shouldn't know how environment variables are set
-- **GitHub Actions workflow** - Uses GitHub secrets directly, no Doppler required
-- **Local development** - Uses Doppler for secret management
-- **Wrapper scripts** - Provide environment context (Doppler for local, GitHub Actions for CI/CD)
+### 5. Wrapper Script Pattern
+The system uses a **wrapper pattern** where:
+- **Wrapper scripts** provide environment context (Doppler for local, GitHub Actions for CI/CD)
+- **Core scripts** are environment agnostic and receive variables through environment
+- **Entry points** are always the wrapper scripts, never the core scripts directly
 
-### 5. GitHub Actions Integration
-- **Environment agnostic workflow** - `deploy.yml` doesn't know about Doppler vs GitHub Actions
+**Wrapper Scripts:**
+- `docker_build_with_doppler.sh` → `docker_build.sh`
+- `docker_deploy_with_doppler.sh` → `docker_deploy.sh`
+- `docker_run_with_doppler.sh` → `docker_run.sh`
+- `.github/workflows/deploy.yml` → `docker_deploy.sh` (via secrets blob)
+
+### 6. GitHub Actions Integration
+- **Environment agnostic workflow** - `deploy.yml` packs secrets into base64 blob
 - **Simplified dependency installation** - Installs Alembic and psycopg2-binary directly via pip (no Poetry required)
 - **Secret verification** - Validates all required secrets before deployment
 - **Uses the scripts** - Delegates all logic to the deployment scripts
 
-### 6. Local Testing with Act
+### 7. Local Testing with Act
 - **`deploy_with_act.sh`** - Wrapper to fake GitHub Actions environment locally
 - **Environment simulation** - Makes Act think it's running in GitHub Actions
 - **Secret injection** - Uses Doppler secrets to simulate GitHub Actions secrets
@@ -70,7 +75,7 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 
 ## File Responsibilities
 
-### Core Scripts
+### Core Scripts (Environment Agnostic)
 
 #### `docker_build.sh`
 - **Purpose**: Build Docker images using docker-compose
@@ -80,6 +85,7 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
   - Creates environment-specific image tags
   - Tags with base name for compatibility
 - **ECR Auth**: Handles authentication when `--push` is used
+- **Environment**: Completely agnostic - gets all variables from wrapper
 
 #### `docker_run_core.sh`
 - **Purpose**: Local container orchestration using docker-compose
@@ -89,6 +95,7 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
   - Cleanup of orphaned containers
   - Digest verification for deployments
 - **ECR Auth**: Handles authentication for image pulling
+- **Environment**: Completely agnostic - gets all variables from wrapper
 
 #### `docker_run.sh`
 - **Purpose**: Entry point for running containers
@@ -99,8 +106,18 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 - **Modes**:
   - Local: Calls `docker_run_with_doppler.sh`
   - Remote: Copies scripts and executes on EC2
+- **Environment**: Completely agnostic - gets all variables from wrapper
 
-### Wrapper Scripts
+#### `docker_deploy.sh`
+- **Purpose**: Full deployment pipeline
+- **Key Features**:
+  - Builds and pushes images
+  - Runs database migrations
+  - Deploys to remote host
+  - Shows final status
+- **Environment**: Completely agnostic - gets all variables from wrapper
+
+### Wrapper Scripts (Environment Aware)
 
 #### `docker_build_with_doppler.sh`
 - **Purpose**: Doppler wrapper for building
@@ -132,14 +149,6 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
   - Delegates to `docker_run_core.sh`
   - Verifies deployment with image digests
 
-#### `docker_deploy.sh`
-- **Purpose**: Full deployment pipeline
-- **Key Features**:
-  - Builds and pushes images
-  - Runs database migrations
-  - Deploys to remote host
-  - Shows final status
-
 ### Docker Compose
 
 #### `docker-compose.yml`
@@ -158,19 +167,18 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 #### `.github/workflows/deploy.yml`
 - **Purpose**: GitHub Actions workflow for automated deployment
 - **Key Features**:
-  - Environment agnostic (doesn't know about Doppler vs GitHub Actions)
+  - **Environment agnostic** - packs secrets into base64 blob
   - Validates all required secrets before deployment
-  - Uses official Poetry action for proper dependency installation
+  - Installs minimal dependencies (Alembic and psycopg2-binary via pip)
   - Delegates all logic to deployment scripts
 - **Triggers**: Manual dispatch and pushes to main/dev branches
 
-#### `.github/deploy_with_act.sh`
-- **Purpose**: Local testing wrapper for GitHub Actions workflow
+#### `docker_deploy_with_doppler.sh`
+- **Purpose**: Local wrapper for full deployment
 - **Key Features**:
-  - Fakes GitHub Actions environment for local testing
-  - Uses Doppler secrets to simulate GitHub Actions secrets
-  - Runs Act (GitHub Actions locally) with proper environment
-  - Enables local debugging of deployment workflow
+  - Ensures Doppler context
+  - Collects all secrets as JSON → base64
+  - Delegates to `docker_deploy.sh`
 
 ## Main Concerns Addressed
 
@@ -186,8 +194,8 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 
 ### 3. **Secret Management**
 - **Problem**: Hardcoded secrets and inconsistent variable handling
-- **Solution**: Doppler integration with proper variable unquoting
-- **Implementation**: Wrapper scripts ensure Doppler context and clean variables
+- **Solution**: Wrapper scripts provide environment context
+- **Implementation**: Doppler for local, GitHub Actions secrets for CI/CD
 
 ### 4. **Container Orchestration**
 - **Problem**: Manual container management and inconsistent startup
@@ -199,15 +207,15 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 - **Solution**: Image digest verification and health checks
 - **Implementation**: `NEW_IMAGE_DIGEST` tracking and container status monitoring
 
-### 6. **Environment Awareness**
+### 6. **Environment Agnostic Design**
 - **Problem**: Scripts need to work in both local (Doppler) and CI/CD (GitHub Actions) environments
-- **Solution**: Environment-aware validation with agnostic deployment scripts
-- **Implementation**: Only `docker_validate_setup.sh` detects environment, all other scripts are agnostic
+- **Solution**: Core scripts are completely environment agnostic, wrapper scripts provide context
+- **Implementation**: Wrapper pattern ensures core scripts work identically in all contexts
 
 ### 7. **GitHub Actions Integration**
 - **Problem**: Poetry installation permission issues and unnecessary complexity in CI/CD
-- **Solution**: Simplified dependency installation (Alembic and psycopg2-binary via pip) and proper environment handling
-- **Implementation**: Environment agnostic workflow that delegates to scripts, no Poetry required in CI/CD
+- **Solution**: Simplified dependency installation and environment agnostic workflow
+- **Implementation**: Minimal pip dependencies, secrets packed as base64 blob
 
 ### 8. **Local Testing**
 - **Problem**: No way to test GitHub Actions workflow locally
@@ -216,7 +224,7 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 
 ## Usage Examples
 
-### Local Development
+### Local Development (Wrapper Scripts Only)
 ```bash
 # Build without push
 ./docker_build_with_doppler.sh
@@ -226,13 +234,13 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 
 # Run locally
 ./docker_run_with_doppler.sh
+
+# Full deployment
+./docker_deploy_with_doppler.sh --env dev
 ```
 
 ### Production Deployment
 ```bash
-# Full deployment (build, push, migrate, deploy)
-./docker_deploy_with_doppler.sh --env prd
-
 # Remote deployment only
 ./docker_run.sh --env prd --remote
 ```
@@ -248,8 +256,10 @@ This mapping ensures compatibility with AWS CLI commands like `aws ecr get-login
 
 ## Key Benefits
 
-1. **Consistency**: All scripts use the same authentication and variable handling
-2. **Extensibility**: Easy to add new services via docker-compose.yml
-3. **Reliability**: Proper error handling and verification at each step
-4. **Maintainability**: Clear separation of concerns and well-documented responsibilities
-5. **Security**: Proper secret management through Doppler integration 
+1. **Environment Agnostic**: Core scripts work identically in all contexts
+2. **Consistency**: All scripts use the same authentication and variable handling
+3. **Extensibility**: Easy to add new services via docker-compose.yml
+4. **Reliability**: Proper error handling and verification at each step
+5. **Maintainability**: Clear separation of concerns and well-documented responsibilities
+6. **Security**: Proper secret management through wrapper scripts
+7. **Testability**: Local testing of GitHub Actions workflows via Act 
