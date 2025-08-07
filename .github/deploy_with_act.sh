@@ -6,6 +6,29 @@ set -euo pipefail
 USER_ID=$(id -u)
 GROUP_ID=$(getent group docker | cut -d: -f3)
 
+# Prefer GitHub Container Registry; fallback to Docker Hub
+PRIMARY_RUNNER_IMAGE="ghcr.io/catthehacker/ubuntu:act-latest"
+FALLBACK_RUNNER_IMAGE="catthehacker/ubuntu:act-latest"
+RUNNER_IMAGE="$PRIMARY_RUNNER_IMAGE"
+
+pull_runner_image() {
+  local image="$1"
+  echo "📥 Pulling Act runner image: $image"
+  if ! docker pull "$image"; then
+    echo "⚠️  Pull failed for $image — attempting docker logout and retry..."
+    local registry
+    registry="${image%%/*}"
+    # If image is like 'catthehacker/ubuntu:act-latest' (Docker Hub), registry would be entire repo
+    # 'docker logout' without registry clears default creds
+    if [[ "$image" == ghcr.io/* ]]; then
+      docker logout ghcr.io || true
+    else
+      docker logout || true
+    fi
+    docker pull "$image"
+  fi
+}
+
 # Parse arguments
 TEST_MODE=false
 if [[ "${1:-}" == "--test" ]]; then
@@ -16,21 +39,27 @@ fi
 echo "🚀 Deploying with Act (GitHub Actions locally)..."
 echo "   Using Doppler secrets for environment variables"
 
-# Auto-setup Act on first run
-echo "🔧 Checking Act setup..."
-if ! docker images | grep -q "catthehacker/ubuntu"; then
-    echo "📥 Setting up Act (downloading runner image)..."
-    echo "   This may take 2-5 minutes on first run"
-    echo "   Image size: ~1.5GB"
-    docker pull catthehacker/ubuntu:act-latest
-    if [[ $? -eq 0 ]]; then
-        echo "✅ Act setup complete!"
-    else
-        echo "❌ Failed to setup Act"
-        exit 1
-    fi
+# Auto-setup Act runner image on first run
+echo "🔧 Checking Act runner image..."
+if docker image inspect "$PRIMARY_RUNNER_IMAGE" >/dev/null 2>&1; then
+  RUNNER_IMAGE="$PRIMARY_RUNNER_IMAGE"
+  echo "✅ Found runner image locally: $RUNNER_IMAGE"
+elif docker image inspect "$FALLBACK_RUNNER_IMAGE" >/dev/null 2>&1; then
+  RUNNER_IMAGE="$FALLBACK_RUNNER_IMAGE"
+  echo "✅ Found runner image locally: $RUNNER_IMAGE"
 else
-    echo "✅ Act is ready"
+  echo "📥 Runner image not found locally; downloading..."
+  echo "   This may take 2-5 minutes on first run"
+  echo "   Image size: ~1.5GB"
+  if pull_runner_image "$PRIMARY_RUNNER_IMAGE"; then
+    RUNNER_IMAGE="$PRIMARY_RUNNER_IMAGE"
+    echo "✅ Act runner ready: $RUNNER_IMAGE"
+  else
+    echo "⚠️  Primary registry failed; trying Docker Hub mirror..."
+    pull_runner_image "$FALLBACK_RUNNER_IMAGE"
+    RUNNER_IMAGE="$FALLBACK_RUNNER_IMAGE"
+    echo "✅ Act runner ready: $RUNNER_IMAGE"
+  fi
 fi
 
 if [[ "$TEST_MODE" == "true" ]]; then
@@ -44,9 +73,10 @@ echo "🔄 Starting Act deployment with timeout..."
 doppler secrets download --project whatsapp_miner_backend --config dev_personal --no-file --format env \
 	| sed "s/^/-s /" \
 	| xargs act \
-		-P ubuntu-latest=catthehacker/ubuntu:act-latest \
+		-P ubuntu-latest='"$RUNNER_IMAGE"' \
 		--container-options "-u '"$USER_ID:$GROUP_ID"'" \
 		--reuse \
+		--pull=false \
 		-W .github/workflows/deploy.yml
 '
     
@@ -75,9 +105,10 @@ else
     doppler secrets download --project whatsapp_miner_backend --config dev_personal --no-file --format env \
 	| sed 's/^/-s /' \
 	| xargs act \
-		-P ubuntu-latest=catthehacker/ubuntu:act-latest \
+		-P ubuntu-latest="$RUNNER_IMAGE" \
 		--container-options "-u $USER_ID:$GROUP_ID" \
 		--reuse \
+		--pull=false \
 		-W .github/workflows/deploy.yml
 fi
 

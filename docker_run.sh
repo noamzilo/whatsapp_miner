@@ -38,37 +38,16 @@ echo "🚀 Mode: $MODE"
 
 if [[ "$MODE" == "remote" ]]; then
 	# ── Remote path ───────────────────────────────────────────────────────────
-	# Check if we're in GitHub Actions or local environment
-	if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-		echo "🏗️  Running in GitHub Actions environment"
-		# GitHub Actions: use environment variables directly
-		: "${AWS_EC2_HOST_ADDRESS:?}"
-		: "${AWS_EC2_USERNAME:?}"
-		: "${AWS_EC2_PEM_CHATBOT_SA_B64:?}"
-		: "${AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:?}"
-		
-		# AWS variables are already set from GitHub secrets
-		: "${AWS_ACCESS_KEY_ID:?}"
-		: "${AWS_SECRET_ACCESS_KEY:?}"
-		: "${AWS_DEFAULT_REGION:?}"
-	else
-		# Local: check if we're in Doppler context, if not, re-exec with Doppler
-		if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
-			echo "🔄 Re-executing with Doppler context..."
-			exec doppler run --preserve-env -- "$0" "$@"
-		fi
-
-		# ── Map AWS variables from Doppler to standard names ─────────────────────
-		export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
-		export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
-		export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
-
-		# ── Required variables (now mapped from Doppler) ─────────────────────────
-		: "${AWS_EC2_HOST_ADDRESS:?}"
-		: "${AWS_EC2_USERNAME:?}"
-		: "${AWS_EC2_PEM_CHATBOT_SA_B64:?}"
-		: "${AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:?}"
-	fi
+	# Environment agnostic: validate required variables regardless of context
+	: "${AWS_EC2_HOST_ADDRESS:?}"
+	: "${AWS_EC2_USERNAME:?}"
+	: "${AWS_EC2_PEM_CHATBOT_SA_B64:?}"
+	: "${AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER:?}"
+	
+	# Map AWS variables to standard names (works in both Doppler and GitHub Actions)
+	export AWS_ACCESS_KEY_ID="${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID:-$AWS_ACCESS_KEY_ID}"
+	export AWS_SECRET_ACCESS_KEY="${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY:-$AWS_SECRET_ACCESS_KEY}"
+	export AWS_DEFAULT_REGION="${AWS_EC2_REGION:-$AWS_DEFAULT_REGION}"
 
 	REMOTE_DIR="$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER"
 
@@ -111,13 +90,9 @@ if [[ "$MODE" == "remote" ]]; then
 	# Create temp env on remote - pass ALL environment variables automatically
 	REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
 	
-	if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-		# GitHub Actions: export ALL environment variables to remote .env file
-		env | sed 's/^/export /' | ssh_cmd "cat > '$REMOTE_ENV'"
-	else
-		# Local: use Doppler to create .env with all variables
-		doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
-	fi
+	# Environment agnostic: export all variables except GitHub Actions internal ones
+	# Only filter out GitHub-specific variables, leave everything else
+	env | grep -v -E '^(GITHUB_|RUNNER_|ACTIONS_|ACT_)' | sed 's/^/export /' | ssh_cmd "cat > '$REMOTE_ENV'"
 
 	# Execute remote wrapper and clean up temp env
 	# Pass DIGEST_FILE_PATH for deployment verification
