@@ -9,6 +9,7 @@ jobs:
   # ────────────────────────── 1. pack & deploy ─────────────────────────────
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prd' || github.ref_name == 'stage' && 'stg' || 'dev' }}
 
     # ▸▸▸  explicitly expose only the secrets you want to pack  ▸▸▸
     env:
@@ -30,8 +31,8 @@ jobs:
       GROQ_API_KEY:                             ${{ secrets.GROQ_API_KEY }}
 
     steps:
-      # ────── (a) checkout ──────
-      - name: Checkout repository
+      # ────── (a) checkout code ──────
+      - name: Checkout code
         uses: actions/checkout@v4
 
       # ────── (b) setup a real Python ──────
