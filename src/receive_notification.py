@@ -28,6 +28,7 @@ message_queue = RedisMessageQueue()
 
 def main():
 	print(f"polling started   ")
+	print("hi=5")
 	greenAPI.webhooks.startReceivingNotifications(handler)
 	print("this will never print if startReceivingNotifications is blocking")
 
