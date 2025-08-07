@@ -53,6 +53,14 @@ else
     echo "⚠️  Warning: ENV_FILE not found or empty: $ENV_FILE"
 fi
 
+# Derive compose project and container base name per environment (after env loaded)
+# This ensures compose operations are isolated by environment
+CONTAINER_BASE_NAME="${DOCKER_CONTAINER_NAME_WHATSAPP_MINER:-whatsapp_miner}"
+CONTAINER_BASE_NAME="${CONTAINER_BASE_NAME%\"}"
+CONTAINER_BASE_NAME="${CONTAINER_BASE_NAME#\"}"
+export COMPOSE_PROJECT_NAME="${CONTAINER_BASE_NAME}_${ENV_NAME}"
+echo "   Compose project: $COMPOSE_PROJECT_NAME"
+
 # 1│Login to ECR so Compose can pull private image
 echo "🔐 Logging into ECR..."
 echo "🔍 Debug: Current user: $(whoami)"
@@ -108,9 +116,10 @@ rm -rf "$DOCKER_CONFIG_DIR"
 # Clean up credential files
 rm -rf "$AWS_CREDS_DIR"
 
-# 2│Check for any existing containers using our image (regardless of how they were started)
-echo "🔍 Checking for existing containers using our image..."
-EXISTING_CONTAINERS="$(docker ps --filter "ancestor=$DOCKER_IMAGE_NAME_WHATSAPP_MINER" --format "{{.Names}}" 2>/dev/null || echo "")"
+# 2│Check for any existing containers that belong to this environment by name suffix
+echo "🔍 Checking for existing containers for env: $ENV_NAME ..."
+# Only consider containers whose names end with _${ENV_NAME}
+EXISTING_CONTAINERS="$(docker ps -a --filter "name=${CONTAINER_BASE_NAME}_" --format "{{.Names}}" 2>/dev/null | grep -E "_${ENV_NAME}$" || true)"
 
 if [[ -n "$EXISTING_CONTAINERS" ]]; then
     echo "   📋 Found existing containers using our image:"
@@ -128,7 +137,7 @@ if [[ -n "$EXISTING_CONTAINERS" ]]; then
     if [[ -n "${NEW_IMAGE_DIGEST:-}" ]]; then
         echo "   🔍 Checking if existing containers need restart..."
         
-        # Get current image digest from any running container
+        # Get current image digest from any running env-scoped container
         CURRENT_DIGEST=""
         for container in $EXISTING_CONTAINERS; do
             CONTAINER_IMAGE="$(docker inspect --format '{{.Image}}' "$container" 2>/dev/null || echo "")"
@@ -175,9 +184,10 @@ fi
 if [[ "$NEED_RESTART" == "true" ]]; then
     echo "🛑 Stopping existing containers for restart..."
     
-    # Stop any existing containers using our image (regardless of how they were started)
+    # Stop any existing containers for this environment (by name suffix)
     if [[ -n "$EXISTING_CONTAINERS" ]]; then
-        echo "   Stopping existing containers..."
+        echo "   Stopping existing containers:"
+        echo "$EXISTING_CONTAINERS" | sed 's/^/      - /'
         echo "$EXISTING_CONTAINERS" | xargs -r docker stop || true
         echo "$EXISTING_CONTAINERS" | xargs -r docker rm || true
     fi
@@ -185,10 +195,10 @@ if [[ "$NEED_RESTART" == "true" ]]; then
     # Also stop any docker-compose managed containers and remove them
     docker compose down --remove-orphans --volumes || true
     
-    # Force remove any containers with our naming pattern to avoid conflicts
-    # Note: This docker ps command is necessary to find containers started outside docker-compose
-    echo "   Removing any conflicting containers..."
-    docker ps -a --filter "name=whatsapp_miner" --format "{{.ID}}" | xargs -r docker rm -f || true
+    # Force remove any containers with our naming pattern for this environment to avoid conflicts
+    # Note: We select by base name and env suffix to avoid touching other environments
+    echo "   Removing any conflicting containers for env: $ENV_NAME ..."
+    docker ps -a --filter "name=${CONTAINER_BASE_NAME}_" --format "{{.Names}}" | grep -E "_${ENV_NAME}$" | xargs -r docker rm -f || true
     
     echo "🚀 Starting services with new image..."
     if [[ -n "$COMPOSE_SVCS" ]]; then
