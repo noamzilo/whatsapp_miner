@@ -11,7 +11,8 @@ from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.db import get_message_by_message_id, get_user_by_whatsapp_id, get_group_by_whatsapp_id
 from src.message_queue.redis_streams_queue import RedisMessageQueue
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime
+from datetime import datetime, timedelta
+import threading
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
 
@@ -26,11 +27,27 @@ greenAPI = API.GreenAPI(
 # Initialize queue for publishing messages
 message_queue = RedisMessageQueue()
 
+def _liveness_loop() -> None:
+    """Background liveness logger that emits a heartbeat every 30 minutes."""
+    interval = 30 * 60  # seconds
+    while True:
+        try:
+            logger.info("🟢 Miner liveness: receive_notification up and running")
+        except Exception:  # logging should not crash the process
+            pass
+        finally:
+            threading.Event().wait(interval)
+
+
 def main():
-	print(f"polling started   ")
-	print("hi=t6")
-	greenAPI.webhooks.startReceivingNotifications(handler)
-	print("this will never print if startReceivingNotifications is blocking")
+    logger.info("🟢 Miner starting: initializing webhooks receiver")
+    # Start liveness background thread (daemon so it won't block shutdown)
+    t = threading.Thread(target=_liveness_loop, name="liveness", daemon=True)
+    t.start()
+    print(f"polling started   ")
+    print("hi=t6")
+    greenAPI.webhooks.startReceivingNotifications(handler)
+    print("this will never print if startReceivingNotifications is blocking")
 
 @event.listens_for(Engine, "connect")
 def print_connection_info(dbapi_connection, connection_record):

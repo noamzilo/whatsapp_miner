@@ -37,6 +37,7 @@ echo "🚀 Starting deployment..."
 
 : "${AWS_EC2_REGION:?}"
 : "${DOCKER_IMAGE_NAME_WHATSAPP_MINER:?}"
+: "${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER:?}"
 
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
@@ -45,15 +46,21 @@ export AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$AWS_EC2_REGION}"
 echo "🔍 Validating deployment setup…"
 ./docker_validate_setup.sh --env "$ENV_NAME"
 
-echo "🔨 Building & pushing image…"
-./docker_build.sh --env "$ENV_NAME" --push --image-name "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" --region "$AWS_EC2_REGION" --access-key "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID" --secret-key "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
+echo "🔨 Building & pushing images…"
+./docker_build.sh --env "$ENV_NAME" --push \
+  --miner-image "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" \
+  --classifier-image "$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER" \
+  --region "$AWS_EC2_REGION" \
+  --access-key "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID" \
+  --secret-key "$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 
-NEW_IMAGE_DIGEST=$(docker images --digests --format 'table {{.Repository}}:{{.Tag}}\t{{.Digest}}' |
-                   grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}')
-echo "📦 Image digest: $NEW_IMAGE_DIGEST"
+MINER_DIGEST=$(docker images --digests --format 'table {{.Repository}}:{{.Tag}}\t{{.Digest}}' | grep "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" | awk '{print $2}')
+CLASSIFIER_DIGEST=$(docker images --digests --format 'table {{.Repository}}:{{.Tag}}\t{{.Digest}}' | grep "$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER" | awk '{print $2}')
+echo "📦 Miner image digest: $MINER_DIGEST"
+echo "📦 Classifier image digest: $CLASSIFIER_DIGEST"
 
 DIGEST_FILE=$(mktemp /tmp/whatsapp_miner_digest.XXXX)
-echo "$NEW_IMAGE_DIGEST" > "$DIGEST_FILE"
+printf "MINER=%s\nCLASSIFIER=%s\n" "${MINER_DIGEST:-}" "${CLASSIFIER_DIGEST:-}" > "$DIGEST_FILE"
 export DIGEST_FILE_PATH="$DIGEST_FILE"
 
 echo "🗄️  Running migrations…"

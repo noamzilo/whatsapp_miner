@@ -75,9 +75,21 @@ ssh_cmd() { ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no "$AWS_EC2_USERNAME@$A
 # Create temp env file on remote with all variables
 REMOTE_ENV="/tmp/whatsapp_miner_verify.$RANDOM.env"
 if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-    # Export all environment variables in proper format, filtering out invalid names
-    # Filter out variables with invalid characters (like Docker image digests with colons)
-    env | grep -E '^[A-Za-z_][A-Za-z0-9_]*=' | sed 's/^/export /' | ssh_cmd "cat > '$REMOTE_ENV'"
+    # Safely export all environment variables, quoting values so spaces/newlines don't break 'export'
+    # Only include valid shell identifiers as variable names
+    {
+        while IFS= read -r line; do
+            # Skip empty lines
+            [[ -z "$line" ]] && continue
+            name="${line%%=*}"
+            value="${line#*=}"
+            # Keep only valid identifiers (first char letter or underscore, rest alnum or underscore)
+            if [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+                # %q produces shell-escaped form that 'source' can read safely
+                printf 'export %s=%q\n' "$name" "$value"
+            fi
+        done < <(env)
+    } | ssh_cmd "cat > '$REMOTE_ENV'"
 else
     doppler secrets download --no-file --format docker | ssh_cmd "cat > '$REMOTE_ENV'"
 fi

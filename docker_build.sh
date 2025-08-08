@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # docker_build.sh
-# Build the Docker image using docker-compose and env-injected name.
-# Usage: ./docker_build.sh [--env dev|prd] [--push] [--image-name IMAGE_NAME] [--region REGION] [--pem-cert PEM_B64]
+# Build WhatsApp Miner images using docker-compose (miner + classifier).
+# Usage:
+#   ./docker_build.sh [--env dev|prd] [--push]
+#                     [--miner-image IMAGE] [--classifier-image IMAGE]
+#                     [--region REGION] [--access-key KEY] [--secret-key KEY]
 set -euo pipefail
 
 # Parse arguments
 PUSH_IMAGE=false
 ENV_NAME="dev"  # Default to dev
-DOCKER_IMAGE_NAME_WHATSAPP_MINER=""
+DOCKER_IMAGE_NAME_WHATSAPP_MINER="${DOCKER_IMAGE_NAME_WHATSAPP_MINER:-}"
+DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER="${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER:-}"
 AWS_DEFAULT_REGION=""
 AWS_ACCESS_KEY_ID=""
 AWS_SECRET_ACCESS_KEY=""
@@ -23,7 +27,16 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --image-name)
+            # Backward compatibility: sets miner image
             DOCKER_IMAGE_NAME_WHATSAPP_MINER="$2"
+            shift 2
+            ;;
+        --miner-image)
+            DOCKER_IMAGE_NAME_WHATSAPP_MINER="$2"
+            shift 2
+            ;;
+        --classifier-image)
+            DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER="$2"
             shift 2
             ;;
         --region)
@@ -46,9 +59,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Validate required arguments
+# Validate required image names (allow env fallbacks)
 if [[ -z "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" ]]; then
-    echo "❌ Error: --image-name is required"
+    echo "❌ Error: miner image is required. Provide --miner-image or DOCKER_IMAGE_NAME_WHATSAPP_MINER env"
+    exit 1
+fi
+if [[ -z "$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER" ]]; then
+    echo "❌ Error: classifier image is required. Provide --classifier-image or DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER env"
     exit 1
 fi
 
@@ -83,10 +100,10 @@ if [[ "$PUSH_IMAGE" == "true" ]]; then
     export AWS_SECRET_ACCESS_KEY
     export AWS_DEFAULT_REGION
     
-    # Get ECR registry from cleaned image name
-    CLEAN_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
-    CLEAN_IMAGE_NAME="${CLEAN_IMAGE_NAME#\"}"
-    ECR_REGISTRY="${CLEAN_IMAGE_NAME%/*}"
+    # Get ECR registry from cleaned miner image name (assume same registry for both)
+    CLEAN_MINER_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
+    CLEAN_MINER_IMAGE_NAME="${CLEAN_MINER_IMAGE_NAME#\"}"
+    ECR_REGISTRY="${CLEAN_MINER_IMAGE_NAME%/*}"
     
     # Login to ECR
     echo "🔐 Logging into ECR registry: $ECR_REGISTRY"
@@ -98,49 +115,53 @@ if [[ "$PUSH_IMAGE" == "true" ]]; then
     echo "$ECR_PASSWORD" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
 fi
 
-# Create environment-specific image name
-# Use tags to distinguish environments within the same repository
-# Remove quotes from the image name if present
-CLEAN_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
-CLEAN_IMAGE_NAME="${CLEAN_IMAGE_NAME#\"}"
+make_env_specific() {
+    local image_name="$1"
+    local clean="${image_name%\"}"
+    clean="${clean#\"}"
+    if [[ "$clean" == *:* ]]; then
+        local base="${clean%:*}"
+        local tag="${clean#*:}"
+        printf "%s:%s-%s" "$base" "$tag" "$ENV_NAME"
+    else
+        printf "%s:%s" "$clean" "$ENV_NAME"
+    fi
+}
 
-if [[ "$CLEAN_IMAGE_NAME" == *:* ]]; then
-    # Has tag - extract base name and tag, then append environment to tag
-    BASE_IMAGE_NAME="${CLEAN_IMAGE_NAME%:*}"
-    BASE_TAG="${CLEAN_IMAGE_NAME#*:}"
-    ENV_SPECIFIC_IMAGE_NAME="${BASE_IMAGE_NAME}:${BASE_TAG}-${ENV_NAME}"
-else
-    # No tag - append environment as tag
-    ENV_SPECIFIC_IMAGE_NAME="${CLEAN_IMAGE_NAME}:${ENV_NAME}"
-fi
+ENV_SPECIFIC_MINER_IMAGE_NAME="$(make_env_specific "$DOCKER_IMAGE_NAME_WHATSAPP_MINER")"
+ENV_SPECIFIC_CLASSIFIER_IMAGE_NAME="$(make_env_specific "$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER")"
 
-echo "🔨 Building Docker image: $ENV_SPECIFIC_IMAGE_NAME"
-echo "🌍 Environment: $ENV_NAME"
-echo "   Base image: $DOCKER_IMAGE_NAME_WHATSAPP_MINER"
-echo "   Environment-specific: $ENV_SPECIFIC_IMAGE_NAME"
+echo "🔨 Building Docker images for environment: $ENV_NAME"
+echo "   Miner:       base=$DOCKER_IMAGE_NAME_WHATSAPP_MINER -> env=$ENV_SPECIFIC_MINER_IMAGE_NAME"
+echo "   Classifier:  base=$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER -> env=$ENV_SPECIFIC_CLASSIFIER_IMAGE_NAME"
 
-# Export the environment-specific image name for docker-compose
-export DOCKER_IMAGE_NAME_WHATSAPP_MINER="$ENV_SPECIFIC_IMAGE_NAME"
+# Export the environment-specific image names for docker-compose
+export DOCKER_IMAGE_NAME_WHATSAPP_MINER="$ENV_SPECIFIC_MINER_IMAGE_NAME"
+export DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER="$ENV_SPECIFIC_CLASSIFIER_IMAGE_NAME"
 export ENV_NAME="$ENV_NAME"
 
 # Set up environment variables that docker-compose needs
 export ENV_FILE="${ENV_FILE:-/tmp/whatsapp_miner.$$.env}"
 
 # Build using docker-compose
-echo "🔨 Building with docker-compose..."
-docker compose build
+echo "🔨 Building with docker-compose (both services)..."
+docker compose build miner classifier
 
 # Also tag with the base name for compatibility (using clean name)
-echo "🏷️  Tagging with base name for compatibility..."
-docker tag "$ENV_SPECIFIC_IMAGE_NAME" "$CLEAN_IMAGE_NAME"
+echo "🏷️  Tagging with base names for compatibility..."
+docker tag "$ENV_SPECIFIC_MINER_IMAGE_NAME" "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
+docker tag "$ENV_SPECIFIC_CLASSIFIER_IMAGE_NAME" "${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER%\"}"
 
 if [[ "$PUSH_IMAGE" == "true" ]]; then
-    echo "📤 Pushing environment-specific image to registry..."
-    docker push "$ENV_SPECIFIC_IMAGE_NAME"
-    echo "📤 Pushing base image to registry..."
-    docker push "$CLEAN_IMAGE_NAME"
+    echo "📤 Pushing miner image(s) to registry..."
+    docker push "$ENV_SPECIFIC_MINER_IMAGE_NAME"
+    docker push "${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
+    echo "📤 Pushing classifier image(s) to registry..."
+    docker push "$ENV_SPECIFIC_CLASSIFIER_IMAGE_NAME"
+    docker push "${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER%\"}"
     echo "✅ Images pushed successfully"
 fi
 
-# Export the environment-specific image name for use by other scripts
-export DOCKER_IMAGE_NAME_WHATSAPP_MINER_ENV="$ENV_SPECIFIC_IMAGE_NAME"
+# Export the environment-specific image names for use by other scripts
+export DOCKER_IMAGE_NAME_WHATSAPP_MINER_ENV="$ENV_SPECIFIC_MINER_IMAGE_NAME"
+export DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER_ENV="$ENV_SPECIFIC_CLASSIFIER_IMAGE_NAME"
