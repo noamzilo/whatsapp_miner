@@ -28,6 +28,8 @@ if [[ -n "$SECRETS_B64" ]]; then
   done < <(jq -r 'to_entries[] | "\(.key)=\(.value|tostring)"' "$tmp_json")
 
   rm -f "$tmp_json"
+  # Ensure downstream scripts (e.g., remote runner) can access the blob
+  export SECRETS_B64
 fi
 
 ###############################################################################

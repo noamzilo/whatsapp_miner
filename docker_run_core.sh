@@ -30,9 +30,22 @@ ENV_NAME="${ENV_NAME:-$ENVIRONMENT}"
 ENV_NAME="${ENV_NAME%\"}"
 ENV_NAME="${ENV_NAME#\"}"
 
-# Use environment-specific image names if available, otherwise fall back to base
-MINER_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER_ENV:-$DOCKER_IMAGE_NAME_WHATSAPP_MINER}"
-CLASSIFIER_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER_ENV:-$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER}"
+# Compute environment-specific image names if not provided explicitly
+make_env_specific() {
+    local image_name="$1"
+    local env_tag="$2"
+    local clean="${image_name%\"}"; clean="${clean#\"}"
+    # If tag exists, keep it; else append env tag
+    if [[ "$clean" == *:* ]]; then
+        printf "%s" "$clean"
+    else
+        printf "%s:%s" "$clean" "$env_tag"
+    fi
+}
+
+# Use provided env-specific names or derive from base + ENV_NAME
+MINER_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER_ENV:-$(make_env_specific "$DOCKER_IMAGE_NAME_WHATSAPP_MINER" "$ENV_NAME")}"
+CLASSIFIER_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER_ENV:-$(make_env_specific "$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER" "$ENV_NAME")}"
 
 echo "🔧 Starting docker-compose deployment..."
 echo "   Miner base image:       $DOCKER_IMAGE_NAME_WHATSAPP_MINER"
@@ -66,15 +79,15 @@ echo "🔍 Debug: AWS_ACCESS_KEY_ID length: ${#AWS_ACCESS_KEY_ID}"
 echo "🔍 Debug: AWS_SECRET_ACCESS_KEY length: ${#AWS_SECRET_ACCESS_KEY}"
 echo "🔍 Debug: AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION"
 
-# Get ECR registries from cleaned image names (deduplicated)
+# Get ECR registries from cleaned image names (deduplicated, host only)
 REGISTRIES=()
 add_registry() {
     local name="$1"
     local clean="${name%\"}"; clean="${clean#\"}"
-    local reg="${clean%/*}"
-    if [[ -n "$reg" ]]; then
-        for r in "${REGISTRIES[@]:-}"; do [[ "$r" == "$reg" ]] && return; done
-        REGISTRIES+=("$reg")
+    local host="${clean%%/*}"
+    if [[ -n "$host" ]]; then
+        for r in "${REGISTRIES[@]:-}"; do [[ "$r" == "$host" ]] && return; done
+        REGISTRIES+=("$host")
     fi
 }
 add_registry "$DOCKER_IMAGE_NAME_WHATSAPP_MINER"

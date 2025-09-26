@@ -86,18 +86,10 @@ if [[ "$MODE" == "remote" ]]; then
 	echo "📦 Copying files to remote..."
 	log_scp_cmd docker_run_core.sh docker-compose.yml docker_remote_run.sh "$AWS_EC2_USERNAME@$AWS_EC2_HOST_ADDRESS:$REMOTE_DIR/"
 	log_ssh_cmd "ls -la '$REMOTE_DIR'"
-
-	# Create temp env on remote - pass ALL environment variables automatically
-	REMOTE_ENV="/tmp/whatsapp_miner.$RANDOM.env"
-	
-	# Environment agnostic: export all variables except GitHub Actions internal ones
-	# Only filter out GitHub-specific variables, leave everything else
-	env | grep -v -E '^(GITHUB_|RUNNER_|ACTIONS_|ACT_)' | sed 's/^/export /' | ssh_cmd "cat > '$REMOTE_ENV'"
-
-	# Execute remote wrapper and clean up temp env
-	# Pass DIGEST_FILE_PATH for deployment verification
-	# Change to remote directory before executing
-	if log_ssh_cmd "cd '$REMOTE_DIR' && ENV_FILE='$REMOTE_ENV' DIGEST_FILE_PATH='${DIGEST_FILE_PATH:-}' ENVIRONMENT='$ENVIRONMENT' bash docker_remote_run.sh; rm -f '$REMOTE_ENV'"; then
+    # Execute remote wrapper. Pass SECRETS_B64 so the remote can decode and render
+    # its own temporary env file for docker-compose. Do not mask exit codes with
+    # cleanup here; the remote script is responsible for cleanup.
+    if log_ssh_cmd "cd '$REMOTE_DIR' && SECRETS_B64='${SECRETS_B64:-}' DIGEST_FILE_PATH='${DIGEST_FILE_PATH:-}' ENVIRONMENT='$ENVIRONMENT' bash docker_remote_run.sh"; then
 		echo -e "\n🚀✅ Remote stack up via docker-compose ✅🚀\n"
 	else
 		echo -e "\n❌ Remote deployment failed!\n"

@@ -100,19 +100,39 @@ if [[ "$PUSH_IMAGE" == "true" ]]; then
     export AWS_SECRET_ACCESS_KEY
     export AWS_DEFAULT_REGION
     
-    # Get ECR registry from cleaned miner image name (assume same registry for both)
+    # Get ECR registry host from cleaned miner image name (assume same registry for both)
     CLEAN_MINER_IMAGE_NAME="${DOCKER_IMAGE_NAME_WHATSAPP_MINER%\"}"
     CLEAN_MINER_IMAGE_NAME="${CLEAN_MINER_IMAGE_NAME#\"}"
-    ECR_REGISTRY="${CLEAN_MINER_IMAGE_NAME%/*}"
+    ECR_REGISTRY_HOST="${CLEAN_MINER_IMAGE_NAME%%/*}"
     
     # Login to ECR
-    echo "🔐 Logging into ECR registry: $ECR_REGISTRY"
+    echo "🔐 Logging into ECR registry: $ECR_REGISTRY_HOST"
     
     # Use AWS CLI to get ECR password (simpler approach that was working)
     ECR_PASSWORD=$(aws ecr get-login-password --region "$AWS_DEFAULT_REGION")
     
     # Login to Docker with ECR password
-    echo "$ECR_PASSWORD" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+    echo "$ECR_PASSWORD" | docker login --username AWS --password-stdin "$ECR_REGISTRY_HOST"
+
+    # Ensure ECR repositories exist for miner and classifier
+    ensure_repo() {
+        local image="$1"
+        local clean="${image%\"}"; clean="${clean#\"}"
+        # Remove tag if present
+        local no_tag="${clean%:*}"
+        # Extract repository path after registry host
+        local repo_path="${no_tag#*/}"
+        echo "🔎 Ensuring ECR repository exists: $repo_path"
+        if ! aws ecr describe-repositories --repository-names "$repo_path" >/dev/null 2>&1; then
+            echo "📁 Creating ECR repository: $repo_path"
+            aws ecr create-repository --repository-name "$repo_path" >/dev/null
+            echo "✅ Created ECR repository: $repo_path"
+        else
+            echo "✅ ECR repository already exists: $repo_path"
+        fi
+    }
+    ensure_repo "$DOCKER_IMAGE_NAME_WHATSAPP_MINER"
+    ensure_repo "$DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER"
 fi
 
 make_env_specific() {

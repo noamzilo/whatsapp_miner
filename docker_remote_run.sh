@@ -4,33 +4,55 @@
 
 set -euo pipefail
 
-: "${ENV_FILE:?}"  # passed in by docker_run.sh --remote
-: "${ENVIRONMENT:-dev}"  # passed in by docker_run.sh --remote
+: "${SECRETS_B64:?}"   # passed in by docker_run.sh --remote
+: "${ENVIRONMENT:-dev}"
 
-# ── Load every secret from the Doppler .env file ───────────────────────────
+# Decode the secrets bundle into a temp JSON, then render a docker-format env file
+tmp_json="$(mktemp)"
+trap 'rm -f "$tmp_json" "$ENV_FILE"' EXIT INT TERM
+printf '%s' "$SECRETS_B64" | base64 -d > "$tmp_json"
+
+# Create an ephemeral env file for docker-compose (env_file requires a path)
+ENV_FILE="/tmp/whatsapp_miner.$$.env"
+
+# Prefer jq; if unavailable, fall back to python3
+if command -v jq >/dev/null 2>&1; then
+  jq -r 'to_entries[] | "\(.key)=\(.value|tostring)"' "$tmp_json" > "$ENV_FILE"
+elif command -v python3 >/dev/null 2>&1; then
+  export tmp_json ENV_FILE
+  python3 - << 'PY'
+import json, os, sys
+tmp = os.environ.get('tmp_json')
+out = os.environ.get('ENV_FILE')
+with open(tmp, 'r') as f:
+    data = json.load(f)
+with open(out, 'w') as f:
+    for k, v in data.items():
+        f.write(f"{k}={str(v)}\n")
+PY
+else
+  echo "❌ Neither jq nor python3 is available on the remote host to decode SECRETS_B64"
+  exit 1
+fi
+
+# Load env into this shell for AWS/ECR and script needs
 set -a
 source "$ENV_FILE"
 set +a
 
-# Map Doppler creds (now present in ENV_FILE) to standard AWS vars
+# Map Doppler-style creds (now present) to standard AWS vars
 export AWS_ACCESS_KEY_ID="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID"
 export AWS_SECRET_ACCESS_KEY="$AWS_IAM_WHATSAPP_MINER_ACCESS_KEY"
 export AWS_DEFAULT_REGION="$AWS_EC2_REGION"
 
-# Pass NEW_IMAGE_DIGEST to docker_run_core.sh if available
+# Forward optional digest file path and environment naming
 if [[ -n "${DIGEST_FILE_PATH:-}" ]]; then
     export DIGEST_FILE_PATH
 fi
-
-# Pass ENVIRONMENT and ENV_NAME to docker_run_core.sh
 export ENVIRONMENT
 export ENV_NAME="$ENVIRONMENT"
-
-# Remove quotes from ENV_NAME if present
 ENV_NAME="${ENV_NAME%\"}"
 ENV_NAME="${ENV_NAME#\"}"
-
-# Pass ENV_FILE to docker_run_core.sh
 export ENV_FILE
 
 echo "🌍 Environment: $ENVIRONMENT"
@@ -45,7 +67,7 @@ echo "🔍 Debug: AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION"
 
 ./docker_run_core.sh
 
-# Clean up digest file if it exists
+# Clean up digest file if it exists (do not mask exit codes; handled by trap for env/json)
 if [[ -n "${DIGEST_FILE_PATH:-}" && -f "$DIGEST_FILE_PATH" ]]; then
     rm -f "$DIGEST_FILE_PATH"
 fi
