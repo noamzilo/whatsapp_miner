@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Get connection string from Doppler
-SUPABASE_DB_URL=$(doppler secrets get SUPABASE_DATABASE_CONNECTION_STRING --plain)
+SUPABASE_DB_URL=$(doppler secrets --project whatsapp_miner_backend --config dev_personal get SUPABASE_DATABASE_CONNECTION_STRING --plain)
+#SUPABASE_DB_URL=$(doppler secrets --project whatsapp_miner_backend --config prd get SUPABASE_DATABASE_CONNECTION_STRING --plain)
 
 # Show connection details (only host + db name, not password)
 echo "⚠️  You are about to RESET the database:"
