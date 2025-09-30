@@ -52,9 +52,6 @@ fi
 echo "🚀 Running database migrations with Doppler..."
 echo "📁 Project root: $PROJECT_ROOT"
 echo "🔧 Alembic command: $ALEMBIC_COMMAND"
-if [[ -n "$ALEMBIC_OPTIONS" ]]; then
-    echo "⚙️  Additional options: $ALEMBIC_OPTIONS"
-fi
 
 # Ensure required flags
 if [[ -z "$ENV_NAME" ]]; then

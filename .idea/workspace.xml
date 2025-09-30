@@ -5,29 +5,22 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c44e4bfb-ecd9-478a-b74f-6b7aedcad742" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/src/supabase_try/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.cursorrules" beforeDir="false" afterPath="$PROJECT_DIR$/.cursorrules" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/alembic.ini" beforeDir="false" afterPath="$PROJECT_DIR$/alembic.ini" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/commands.txt" beforeDir="false" afterPath="$PROJECT_DIR$/commands.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/migrations/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/migrations/env.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0001_create_users_groups.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0002_create_messages.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0003_create_lead_and_parsed_lookup_tables.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0004_create_llm_prompt_templates.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0005_create_classifications.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0006_create_leads.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0007_create_registered_businesses.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0008_create_business_leads.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0009_rename_tables_to_clearer_lead_and_.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0010_rename_messages_to_whatsapp_messages.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0011_add_is_real_to_whatsapp_messages.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/0012_add_message_and_category_references_to_detected_leads.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/69f389281cea_remove_confidence_score_from_.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/versions/c2784cf58119_init_schema.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/run_migrations.sh" beforeDir="false" afterPath="$PROJECT_DIR$/run_migrations.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/db_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/db_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/env_var_injection.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/env_var_injection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/scripts/reset_db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/src/scripts/reset_db.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/models/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/detected_lead.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/forwarded_lead.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/lead_category.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/lead_classification_prompt.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/message_intent_classification.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/message_intent_type.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/registered_business.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/whatsapp_group.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/whatsapp_message.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/models/whatsapp_message.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/db/models/whatsapp_user.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/scripts/run_migrations.sh" beforeDir="false" afterPath="$PROJECT_DIR$/src/scripts/run_migrations.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -144,7 +137,7 @@
       <updated>1758925962235</updated>
       <workItem from="1758925963047" duration="16060000" />
       <workItem from="1759256677316" duration="3038000" />
-      <workItem from="1759266680590" duration="250000" />
+      <workItem from="1759266680590" duration="4455000" />
     </task>
     <servers />
   </component>
