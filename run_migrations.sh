@@ -5,6 +5,7 @@
 
 set -euo pipefail
 
+
 # Parse arguments
 ENV_NAME=""
 while [[ $# -gt 0 ]]; do

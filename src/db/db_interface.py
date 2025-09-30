@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from contextlib import contextmanager
 from typing import Generator
-from src.env_var_injection import database_url
+import os
 
 # Shared SQLAlchemy DbInterface
 DbInterface = declarative_base()
@@ -22,7 +22,12 @@ def get_engine():
     """Get the database engine, creating it if necessary."""
     global _engine
     if _engine is None:
-        _engine = create_engine(database_url)
+        # Lazy load database URL to avoid import issues during migrations
+        database_url = os.getenv("SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER")
+        if database_url is None:
+            raise RuntimeError(
+                "Missing required environment variable: SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER")
+        _engine = create_engine(database_url.replace('"', ""))
     return _engine
 
 def get_session_local():

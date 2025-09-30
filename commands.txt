@@ -15,7 +15,15 @@ doppler run --project whatsapp_miner_backend --config dev_personal -- poetry run
 # generate env file (for pycharm)
 doppler secrets download --project whatsapp_miner_backend --config dev --no-file --format env > /home/noams/src/whatsapp_miner/.env.doppler
 
+# connect to psql linux
+doppler run --project whatsapp_miner_backend --config dev_personal -- bash -c 'PGPASSWORD="$SUPABASE_DATABASE_PASSWORD" $SUPABASE_PSQL_COMMAND'
 
+# connect to sql with logging
+doppler run --project whatsapp_miner_backend --config dev_personal -- \
+    poetry run alembic upgrade head --sql
+# make sure albemic table exists
+doppler run --project whatsapp_miner_backend --config dev_personal -- \
+	bash -c 'poetry shell && python -m alembic upgrade head'
 
 
 
