@@ -50,43 +50,30 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
       
-      - name: Build and push miner image
+      - name: Build and push images (miner and classifier)
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ env.ENV_NAME }}-${{ github.sha }}
         run: |
-          # Build miner image
+          # Build once, tag with both miner and classifier names
           docker build \
             --target prod \
             --file docker/Dockerfile \
             --tag ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:$IMAGE_TAG \
             --tag ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:${{ env.ENV_NAME }} \
-            .
-          
-          # Push both tags
-          docker push ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:$IMAGE_TAG
-          docker push ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:${{ env.ENV_NAME }}
-          
-          echo "Pushed miner image: ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:${{ env.ENV_NAME }}"
-      
-      - name: Build and push classifier image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ env.ENV_NAME }}-${{ github.sha }}
-        run: |
-          # Build classifier image (same Dockerfile, different entrypoint in compose)
-          docker build \
-            --target prod \
-            --file docker/Dockerfile \
             --tag ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER }}:$IMAGE_TAG \
             --tag ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER }}:${{ env.ENV_NAME }} \
             .
           
-          # Push both tags
+          # Push all tags
+          docker push ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:$IMAGE_TAG
+          docker push ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:${{ env.ENV_NAME }}
           docker push ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER }}:$IMAGE_TAG
           docker push ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER }}:${{ env.ENV_NAME }}
           
-          echo "Pushed classifier image: ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER }}:${{ env.ENV_NAME }}"
+          echo "✓ Built once and pushed as:"
+          echo "  - Miner: ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }}:${{ env.ENV_NAME }}"
+          echo "  - Classifier: ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER }}:${{ env.ENV_NAME }}"
       
       # ═══════════════════════════════════════════════════════════════════
       # 3. Deploy to EC2

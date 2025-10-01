@@ -26,15 +26,15 @@ services:
     environment:
       - DEBUG=false
       - LOG_LEVEL=INFO
-    # Resource limits (optional, adjust as needed)
+    # Resource limits (adjusted for 1 CPU EC2)
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '1.0'
+          memory: 1G
         reservations:
-          cpus: '0.5'
-          memory: 512M
+          cpus: '0.25'
+          memory: 256M
 
   # ──────────────────────────────────────────────────────────────────────────
   # Classifier Service: Production overrides
@@ -51,13 +51,13 @@ services:
     environment:
       - DEBUG=false
       - LOG_LEVEL=INFO
-    # Resource limits (optional, adjust as needed)
+    # Resource limits (adjusted for 1 CPU EC2)
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '1.0'
+          memory: 1G
         reservations:
-          cpus: '0.5'
-          memory: 512M
+          cpus: '0.25'
+          memory: 256M
 

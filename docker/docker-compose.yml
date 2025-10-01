@@ -8,7 +8,7 @@ services:
   # Migration Service: Runs database migrations before app services start
   # ──────────────────────────────────────────────────────────────────────────
   migrate:
-    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}:${ENV_NAME}
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -25,7 +25,7 @@ services:
   # Miner Service: WhatsApp message receiver
   # ──────────────────────────────────────────────────────────────────────────
   miner:
-    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}:${ENV_NAME}
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -52,7 +52,7 @@ services:
   # Classifier Service: Message classification processor
   # ──────────────────────────────────────────────────────────────────────────
   classifier:
-    image: ${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER}
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER}:${ENV_NAME}
     build:
       context: ..
       dockerfile: docker/Dockerfile
