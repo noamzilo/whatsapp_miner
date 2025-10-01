@@ -1,0 +1,50 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Development Environment Overrides
+# Use: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# ════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Migration Service: Dev overrides
+  # ──────────────────────────────────────────────────────────────────────────
+  migrate:
+    build:
+      target: dev
+    volumes:
+      - ../migrations:/app/migrations:ro
+      - ../alembic.ini:/app/alembic.ini:ro
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Miner Service: Dev overrides with hot reload
+  # ──────────────────────────────────────────────────────────────────────────
+  miner:
+    build:
+      target: dev
+    restart: "no"  # No auto-restart in dev (easier debugging)
+    volumes:
+      - ../src:/app/src:ro  # Hot reload: mount source code
+      - ../migrations:/app/migrations:ro
+    ports:
+      - "8000:8000"  # Expose health endpoint for local testing
+    environment:
+      - PYTHONUNBUFFERED=1  # Real-time logs
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Classifier Service: Dev overrides with hot reload
+  # ──────────────────────────────────────────────────────────────────────────
+  classifier:
+    build:
+      target: dev
+    restart: "no"  # No auto-restart in dev
+    volumes:
+      - ../src:/app/src:ro  # Hot reload: mount source code
+      - ../migrations:/app/migrations:ro
+    ports:
+      - "8001:8001"  # Expose health endpoint for local testing
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+

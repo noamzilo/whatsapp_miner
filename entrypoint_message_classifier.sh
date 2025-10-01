@@ -1,18 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# entrypoint_message_classifier.sh
+# Entrypoint for Message Classifier service
 
-set -e
+set -euo pipefail
 
-APP_FILE="/app/src/message_classification/classify_new_messages.py"
+echo "🚀 Starting Message Classifier service..."
+echo "🌍 Environment: ${ENV_NAME:-dev}"
 
-echo "Entrypoint script executing for Message Classifier"
+# Change to app directory
+cd /app
 
-if [[ ! -f "$APP_FILE" ]]; then
-	echo "❌ ERROR: $APP_FILE not found! Exiting."
-	exit 1
-fi
-
-echo "Current working dir: $(pwd)"
-echo "List /app/src:"
-ls -l /app/src
-
-python -u "$APP_FILE" 
+# Run the classifier application
+exec python -u /app/src/message_classification/classify_new_messages.py 

@@ -1,0 +1,84 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Base Docker Compose Configuration
+# Used by both dev and prod environments with appropriate overrides
+# ════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Migration Service: Runs database migrations before app services start
+  # ──────────────────────────────────────────────────────────────────────────
+  migrate:
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ${BUILD_TARGET:-prod}
+    command: poetry run alembic upgrade head
+    env_file:
+      - ${ENV_FILE:-../.env}
+    restart: "no"  # Run once and exit
+    networks:
+      - whatsapp_network
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Miner Service: WhatsApp message receiver
+  # ──────────────────────────────────────────────────────────────────────────
+  miner:
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ${BUILD_TARGET:-prod}
+    container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_miner_${ENV_NAME}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - ${ENV_FILE:-../.env}
+    environment:
+      - HEALTH_PORT=8000
+    entrypoint: ["/entrypoint_whatsapp_miner.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - whatsapp_network
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Classifier Service: Message classification processor
+  # ──────────────────────────────────────────────────────────────────────────
+  classifier:
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_CLASSIFIER}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ${BUILD_TARGET:-prod}
+    container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_classifier_${ENV_NAME}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - ${ENV_FILE:-../.env}
+    environment:
+      - DATABASE_ENV=${ENV_NAME}
+      - HEALTH_PORT=8001
+    entrypoint: ["/entrypoint_message_classifier.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - whatsapp_network
+
+# ──────────────────────────────────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────────────────────────────────
+networks:
+  whatsapp_network:
+    driver: bridge
+

@@ -1,0 +1,63 @@
+# ════════════════════════════════════════════════════════════════════════════
+# Production Environment Overrides
+# Use: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+# ════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Migration Service: Production overrides
+  # ──────────────────────────────────────────────────────────────────────────
+  migrate:
+    build:
+      target: prod
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Miner Service: Production overrides
+  # ──────────────────────────────────────────────────────────────────────────
+  miner:
+    build:
+      target: prod
+    restart: unless-stopped  # Auto-restart on failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Classifier Service: Production overrides
+  # ──────────────────────────────────────────────────────────────────────────
+  classifier:
+    build:
+      target: prod
+    restart: unless-stopped  # Auto-restart on failure
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
