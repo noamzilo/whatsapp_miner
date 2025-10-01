@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c44e4bfb-ecd9-478a-b74f-6b7aedcad742" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.cursorrules" beforeDir="false" afterPath="$PROJECT_DIR$/.cursorrules" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/message_classification/classify_new_messages.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/message_classification/classify_new_messages.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/receive_notification.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/receive_notification.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/health_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/health_server.py" afterDir="false" />
-    </list>
+    <list default="true" id="c44e4bfb-ecd9-478a-b74f-6b7aedcad742" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -125,7 +119,7 @@
       <updated>1758925962235</updated>
       <workItem from="1758925963047" duration="16060000" />
       <workItem from="1759256677316" duration="3038000" />
-      <workItem from="1759266680590" duration="13353000" />
+      <workItem from="1759266680590" duration="13885000" />
     </task>
     <servers />
   </component>
