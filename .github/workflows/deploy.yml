@@ -153,16 +153,17 @@ jobs:
           aws ecr get-login-password --region ${{ secrets.AWS_EC2_REGION }} | \
             docker login --username AWS --password-stdin ${{ secrets.DOCKER_IMAGE_NAME_WHATSAPP_MINER }} | head -c 100
           
-          # Deploy with docker compose
+          # Deploy with docker compose (pull latest images)
           ./docker-compose-with-env.sh .env.${{ env.ENV_NAME }} \
             -f docker-compose.yml \
             -f docker-compose.prod.yml \
             pull
           
+          # Start services (Docker auto-detects image changes and recreates only changed containers)
           ./docker-compose-with-env.sh .env.${{ env.ENV_NAME }} \
             -f docker-compose.yml \
             -f docker-compose.prod.yml \
-            up -d --no-build
+            up -d --no-build --remove-orphans
           
           echo "✓ Deployment complete"
           
