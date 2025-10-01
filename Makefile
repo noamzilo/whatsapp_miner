@@ -47,14 +47,18 @@ dev-deploy: sync-secrets
 	@act workflow_dispatch \
 		-W .github/workflows/deploy.yml \
 		--secret-file .env.dev \
-		--input environment=dev
+		--input environment=dev \
+		--container-daemon-socket /var/run/docker.sock \
+		--container-options "--group-add $(shell getent group docker | cut -d: -f3)"
 
 prod-deploy: sync-secrets
 	@echo "🧪 Testing prod deployment with act..."
 	@act workflow_dispatch \
 		-W .github/workflows/deploy.yml \
 		--secret-file .env.prod \
-		--input environment=prod
+		--input environment=prod \
+		--container-daemon-socket /var/run/docker.sock \
+		--container-options "--group-add $(shell getent group docker | cut -d: -f3)"
 
 # ────────────────────────────────────────────────────────────────────────────
 # Secret Management
@@ -80,15 +84,43 @@ health:
 	@echo "🏥 Checking local container health (works for dev and prod)..."
 	@docker ps --filter "name=whatsapp_miner" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner" || echo "No containers running"
 
-health-remote:
-	@echo "🏥 Checking health on remote server..."
-	@echo "Usage: SSH_HOST=host SSH_USER=user SSH_KEY=~/.ssh/key.pem make health-remote"
-	@if [ -z "$$SSH_HOST" ] || [ -z "$$SSH_USER" ] || [ -z "$$SSH_KEY" ]; then \
-		echo "❌ Error: Set SSH_HOST, SSH_USER, and SSH_KEY environment variables"; \
-		exit 1; \
-	fi
-	@ssh -i $$SSH_KEY $$SSH_USER@$$SSH_HOST \
-		'docker ps --filter "name=whatsapp_miner" --format "table {{.Names}}\t{{.Status}}"'
+health-remote-dev:
+	@echo "🏥 Checking health on dev EC2..."
+	@doppler run --project whatsapp_miner_backend --config dev_personal --command '\
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
+		chmod 400 /tmp/temp_key.pem && \
+		trap "rm -f /tmp/temp_key.pem" EXIT && \
+		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS \
+			"docker ps --filter \"name=whatsapp_miner\" --format \"table {{.Names}}\t{{.Status}}\""'
+
+health-remote-prod:
+	@echo "🏥 Checking health on prod EC2..."
+	@doppler run --project whatsapp_miner_backend --config prd --command '\
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
+		chmod 400 /tmp/temp_key.pem && \
+		trap "rm -f /tmp/temp_key.pem" EXIT && \
+		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS \
+			"docker ps --filter \"name=whatsapp_miner\" --format \"table {{.Names}}\t{{.Status}}\""'
+
+# ────────────────────────────────────────────────────────────────────────────
+# Remote Access
+# ────────────────────────────────────────────────────────────────────────────
+
+ssh-dev:
+	@echo "🔐 Connecting to dev EC2..."
+	@doppler run --project whatsapp_miner_backend --config dev_personal --command '\
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
+		chmod 400 /tmp/temp_key.pem && \
+		trap "rm -f /tmp/temp_key.pem" EXIT && \
+		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS'
+
+ssh-prod:
+	@echo "🔐 Connecting to prod EC2..."
+	@doppler run --project whatsapp_miner_backend --config prd --command '\
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
+		chmod 400 /tmp/temp_key.pem && \
+		trap "rm -f /tmp/temp_key.pem" EXIT && \
+		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS'
 
 # ────────────────────────────────────────────────────────────────────────────
 # Utilities
@@ -150,8 +182,13 @@ help:
 	@echo "  make prod-deploy            - Test prod deployment with act"
 	@echo ""
 	@echo "Health Checks:"
-	@echo "  make health                 - Check if services are healthy"
-	@echo "  make health-wait            - Wait for services to become healthy"
+	@echo "  make health                 - Check local container health status"
+	@echo "  make health-remote-dev      - Check dev EC2 container health"
+	@echo "  make health-remote-prod     - Check prod EC2 container health"
+	@echo ""
+	@echo "Remote Access:"
+	@echo "  make ssh-dev                - SSH into dev EC2 instance"
+	@echo "  make ssh-prod               - SSH into prod EC2 instance"
 	@echo ""
 	@echo "Secrets:"
 	@echo "  make sync-secrets           - Update .env.dev and .env.prod from Doppler"
