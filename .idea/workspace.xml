@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c44e4bfb-ecd9-478a-b74f-6b7aedcad742" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/entrypoint_message_classifier.sh" beforeDir="false" afterPath="$PROJECT_DIR$/entrypoint_message_classifier.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/entrypoint_whatsapp_miner.sh" beforeDir="false" afterPath="$PROJECT_DIR$/entrypoint_whatsapp_miner.sh" afterDir="false" />
-    </list>
+    <list default="true" id="c44e4bfb-ecd9-478a-b74f-6b7aedcad742" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -123,7 +119,7 @@
       <updated>1758925962235</updated>
       <workItem from="1758925963047" duration="16060000" />
       <workItem from="1759256677316" duration="3038000" />
-      <workItem from="1759266680590" duration="11246000" />
+      <workItem from="1759266680590" duration="11565000" />
     </task>
     <servers />
   </component>

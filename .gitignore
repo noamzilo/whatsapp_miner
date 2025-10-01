@@ -1,13 +1,28 @@
+# Environment and secrets
 /.env
+.env
+.env.*
+!.env.example
+/.env.doppler
+/.doppler_env
+.secrets.*
+doppler.env
+
+# Python
 .pyc
 *.pyc
+__pycache__/
 /env/
-/.env.doppler
+
+# Logs
 /logs
-/.doppler_env
+/ssh_log.log
+
+# Test artifacts
 /tests/*:*
 /*:*
 *:memory:*
+
+# Downloaded files
 /supabase.deb
-/ssh_log.log
 /supabase/prod-ca-2021.crt

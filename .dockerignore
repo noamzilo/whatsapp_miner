@@ -25,9 +25,6 @@ pytest_cache/
 .git/
 .gitignore
 
-# Poetry files not needed in image
-poetry.lock
-
 # PyCharm / VSCode / editor settings
 .idea/
 .vscode/
