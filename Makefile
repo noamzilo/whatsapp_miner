@@ -10,13 +10,17 @@
 
 dev:
 	@echo "🚀 Starting dev environment with Doppler..."
-	doppler run --project whatsapp_miner_backend --config dev_personal -- \
-		docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build
+	@echo "📝 Writing secrets to .env..."
+	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format docker --no-file --silent > .env
+	@ENV_FILE=$$(pwd)/.env ./scripts/load-env-and-run.sh .env -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build
+	@rm -f .env
 
 dev-detached:
 	@echo "🚀 Starting dev environment in background..."
-	doppler run --project whatsapp_miner_backend --config dev_personal -- \
-		docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
+	@echo "📝 Writing secrets to .env..."
+	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format docker --no-file --silent > .env
+	@ENV_FILE=$$(pwd)/.env ./scripts/load-env-and-run.sh .env -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
+	@echo "✓ Secrets written and containers started"
 
 # ────────────────────────────────────────────────────────────────────────────
 # Production Testing Locally
@@ -48,10 +52,10 @@ test-deploy-prod: sync-secrets
 
 sync-secrets:
 	@echo "🔐 Syncing secrets from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format env > .env.local
-	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format env > .secrets.dev
-	@doppler secrets download --project whatsapp_miner_backend --config prd --format env > .env.prod
-	@doppler secrets download --project whatsapp_miner_backend --config prd --format env > .secrets.prod
+	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .env.local
+	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .secrets.dev
+	@doppler secrets download --project whatsapp_miner_backend --config prd --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .env.prod
+	@doppler secrets download --project whatsapp_miner_backend --config prd --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .secrets.prod
 	@echo "✓ Secrets synced to .env.local, .env.prod, .secrets.dev, .secrets.prod"
 
 generate-env-example:

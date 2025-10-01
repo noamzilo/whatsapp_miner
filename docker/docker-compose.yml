@@ -16,6 +16,8 @@ services:
     entrypoint: []  # Override default entrypoint
     command: ["/bin/bash", "-c", "cd /app && poetry run alembic upgrade head"]
     restart: "no"  # Run once and exit
+    env_file:
+      - ${ENV_FILE}  # Pass all env vars into container
     networks:
       - whatsapp_network
 
@@ -32,8 +34,10 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    env_file:
+      - ${ENV_FILE}  # Pass all env vars into container
     environment:
-      - HEALTH_PORT=8000
+      - HEALTH_PORT=8000  # Override specific vars
     entrypoint: ["/entrypoint_whatsapp_miner.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -57,8 +61,10 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    env_file:
+      - ${ENV_FILE}  # Pass all env vars into container
     environment:
-      - DATABASE_ENV=${ENV_NAME}
+      - DATABASE_ENV=${ENV_NAME}  # Override specific vars
       - HEALTH_PORT=8001
     entrypoint: ["/entrypoint_message_classifier.sh"]
     healthcheck:
@@ -76,4 +82,3 @@ services:
 networks:
   whatsapp_network:
     driver: bridge
-
