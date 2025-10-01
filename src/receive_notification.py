@@ -10,7 +10,7 @@ from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.db import get_message_by_message_id, get_user_by_whatsapp_id, get_group_by_whatsapp_id
-from src.message_queue.redis_streams_queue import RedisMessageQueue
+# from src.message_queue.redis_streams_queue import RedisMessageQueue  # Temporarily disabled
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 import threading
@@ -29,7 +29,7 @@ greenAPI = API.GreenAPI(
 )
 
 # Initialize queue for publishing messages
-message_queue = RedisMessageQueue()
+# message_queue = RedisMessageQueue()  # Temporarily disabled
 
 def _liveness_loop() -> None:
     """Background liveness logger that emits a heartbeat every 30 minutes."""
@@ -168,9 +168,9 @@ def incoming_message_received(body: dict) -> None:
 			'group_name': group_name
 		}
 		
-		# Publish to Redis Streams (fire-and-forget)
-		message_queue.publish_message(queue_message_data)
-		logger.info(f"📤 Published message {message_id} to queue for multi-environment processing")
+		# Publish to Redis Streams (fire-and-forget) - Temporarily disabled
+		# message_queue.publish_message(queue_message_data)
+		logger.info(f"✅ Message {message_id} saved to database (queue publishing disabled)")
 
 	except IntegrityError:
 		session.rollback()
