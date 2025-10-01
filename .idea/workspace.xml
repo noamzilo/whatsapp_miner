@@ -5,23 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c44e4bfb-ecd9-478a-b74f-6b7aedcad742" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.cursorrules" beforeDir="false" afterPath="$PROJECT_DIR$/.cursorrules" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/commands.txt" beforeDir="false" afterPath="$PROJECT_DIR$/commands.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/env.py" beforeDir="false" afterPath="$PROJECT_DIR$/migrations/env.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/migrations/versions/c2784cf58119_init_schema.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/run_migrations.sh" beforeDir="false" afterPath="$PROJECT_DIR$/run_migrations.sh" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/models/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/detected_lead.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/forwarded_lead.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/lead_category.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/lead_classification_prompt.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/message_intent_classification.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/message_intent_type.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/registered_business.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/whatsapp_group.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/whatsapp_message.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/db/models/whatsapp_message.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/db/models/whatsapp_user.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/scripts/run_migrations.sh" beforeDir="false" afterPath="$PROJECT_DIR$/src/scripts/run_migrations.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker_deploy.sh" beforeDir="false" afterPath="$PROJECT_DIR$/docker_deploy.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker_remote_run.sh" beforeDir="false" afterPath="$PROJECT_DIR$/docker_remote_run.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker_run.sh" beforeDir="false" afterPath="$PROJECT_DIR$/docker_run.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker_run_with_doppler.sh" beforeDir="false" afterPath="$PROJECT_DIR$/docker_run_with_doppler.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/scripts/reset_db.sh" beforeDir="false" afterPath="$PROJECT_DIR$/src/scripts/reset_db.sh" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -137,7 +127,7 @@
       <updated>1758925962235</updated>
       <workItem from="1758925963047" duration="16060000" />
       <workItem from="1759256677316" duration="3038000" />
-      <workItem from="1759266680590" duration="4455000" />
+      <workItem from="1759266680590" duration="9663000" />
     </task>
     <servers />
   </component>

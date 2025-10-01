@@ -1,3 +1,11 @@
 - never run code without first asking the user for permission.
 - when running code, first use `poetry shell`
-- when running anything that needs secrets, use `doppler run --project whatsapp_miner_backend --config dev_personal`. Also add that to shell scripts
+- when running anything that needs secrets, use `doppler run --project whatsapp_miner_backend --config dev`. Also add that to shell scripts
+
+
+* versions of things:
+- Docker Compose version v2.38.2-desktop.1
+- Docker version 27.5.1, build 27.5.1-0ubuntu3~24.04.2
+- Python 3.11.13
+- Poetry (version 2.1.3)
+- act version 0.2.79

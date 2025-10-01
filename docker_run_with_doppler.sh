@@ -9,11 +9,10 @@ source "$(dirname "$0")/docker_utils.sh"
 
 cd "$(dirname "$0")"
 
-# ── 1. Always re-exec inside a fresh Doppler context ────────────────────────
-if [[ -z "${DOPPLER_REFRESHED:-}" ]]; then
-    echo "🔄 Re-executing with fresh Doppler context..."
-    export DOPPLER_REFRESHED=1
-    exec doppler run --preserve-env -- "$0" "$@"
+# ── 1. Re-exec inside Doppler if not already ────────────────────────────────
+if [[ -z "${DOPPLER_PROJECT:-}" ]]; then
+	echo "🔄 Re-executing with Doppler context..."
+	exec doppler run --preserve-env -- "$0" "$@"
 fi
 
 # Unquote Doppler variables

@@ -5,6 +5,8 @@
 
 set -euo pipefail
 
+exit(1) # we don't want this to run my mistake. Be deliberate and comment this line if you really want.
+
 # Parse arguments
 ENV_NAME=""
 while [[ $# -gt 0 ]]; do
