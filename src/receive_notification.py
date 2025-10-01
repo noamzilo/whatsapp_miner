@@ -4,6 +4,7 @@ from json import dumps
 from env_var_injection import instance_id, api_token
 from whatsapp_api_client_python import API
 from src.utils.log import get_logger, setup_logger
+from src.utils.health_server import start_health_server
 from src.db.db_interface import get_session_local
 from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
@@ -13,8 +14,11 @@ from src.message_queue.redis_streams_queue import RedisMessageQueue
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 import threading
+import os
 from sqlalchemy.engine import Engine
 from sqlalchemy import event
+from env_var_injection import database_url
+
 
 setup_logger(logs_root)
 logger = get_logger("whatsapp_miner")
@@ -41,6 +45,12 @@ def _liveness_loop() -> None:
 
 def main():
     logger.info("🟢 Miner starting: initializing webhooks receiver")
+    
+    # Start health check server for Docker health checks
+    health_port = int(os.getenv("HEALTH_PORT", "8000"))
+    start_health_server("whatsapp-miner", port=health_port)
+    logger.info(f"✅ Health server started on port {health_port}")
+    
     # Start liveness background thread (daemon so it won't block shutdown)
     t = threading.Thread(target=_liveness_loop, name="liveness", daemon=True)
     t.start()
@@ -51,7 +61,6 @@ def main():
 
 @event.listens_for(Engine, "connect")
 def print_connection_info(dbapi_connection, connection_record):
-	from env_var_injection import database_url
 	print(f"[DEBUG] Connecting to database: {database_url}")
 
 def handler(type_webhook: str, body: dict) -> None:
@@ -88,7 +97,7 @@ def incoming_message_received(body: dict) -> None:
 		sender_data = body.get("senderData", {})
 
 		# Extract correct IDs
-		user_id = sender_data.get("sender")                      # "972547204581@c.us"
+		user_id = sender_data.get("sender")                      # "97212345689@c.us"
 		user_name = sender_data.get("senderName", "")           # "Noams Original"
 		group_id = sender_data.get("chatId")                    # "120363418155390035@g.us"
 		group_name = sender_data.get("chatName", "")            # "Group1"

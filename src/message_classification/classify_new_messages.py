@@ -20,11 +20,13 @@ The service will run continuously, checking for new messages every X seconds
 import time
 import logging
 import json
+import os
 from datetime import datetime
 from typing import List, Dict, Any
 
 from src.paths import logs_root
 from src.utils.log import get_logger, setup_logger
+from src.utils.health_server import start_health_server
 from src.message_classification.message_classifier import MessageClassifier
 from src.db.db_interface import get_db_session
 from src.db.db import (
@@ -290,6 +292,11 @@ class MessageClassifierService:
 def main():
     """Main function that runs the message classifier service."""
     logger.info("🤖 Starting Message Classifier Service")
+    
+    # Start health check server for Docker health checks
+    health_port = int(os.getenv("HEALTH_PORT", "8001"))
+    start_health_server("message-classifier", port=health_port)
+    logger.info(f"✅ Health server started on port {health_port}")
     
     service = MessageClassifierService()
     
