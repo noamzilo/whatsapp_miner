@@ -38,6 +38,9 @@ from src.env_var_injection import message_classifier_run_every_seconds
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.db import get_group_by_id, get_user_by_id
+from sqlalchemy import text
+from src.db.db_interface import get_session_local
+
 
 # Setup logging
 setup_logger(logs_root)
@@ -289,14 +292,28 @@ class MessageClassifierService:
             time.sleep(self.run_every_seconds)
 
 
+def check_classifier_health():
+    """
+    Validate classifier health by checking database connection.
+    Raises exception if unhealthy.
+    """
+    SessionLocal = get_session_local()
+    session = SessionLocal()
+    try:
+        # Quick DB validation query
+        session.execute(text("SELECT 1"))
+    finally:
+        session.close()
+
+
 def main():
     """Main function that runs the message classifier service."""
     logger.info("🤖 Starting Message Classifier Service")
     
     # Start health check server for Docker health checks
     health_port = int(os.getenv("HEALTH_PORT", "8001"))
-    start_health_server("message-classifier", port=health_port)
-    logger.info(f"✅ Health server started on port {health_port}")
+    start_health_server("message-classifier", health_check_fn=check_classifier_health, port=health_port)
+    logger.info(f"✅ Health server started on port {health_port} with DB validation")
     
     service = MessageClassifierService()
     

@@ -43,13 +43,28 @@ def _liveness_loop() -> None:
             threading.Event().wait(interval)
 
 
+def check_miner_health():
+    """
+    Validate miner health by checking database connection.
+    Raises exception if unhealthy.
+    """
+    from sqlalchemy import text
+    SessionLocal = get_session_local()
+    session = SessionLocal()
+    try:
+        # Quick DB validation query
+        session.execute(text("SELECT 1"))
+    finally:
+        session.close()
+
+
 def main():
     logger.info("🟢 Miner starting: initializing webhooks receiver")
     
     # Start health check server for Docker health checks
     health_port = int(os.getenv("HEALTH_PORT", "8000"))
-    start_health_server("whatsapp-miner", port=health_port)
-    logger.info(f"✅ Health server started on port {health_port}")
+    start_health_server("whatsapp-miner", health_check_fn=check_miner_health, port=health_port)
+    logger.info(f"✅ Health server started on port {health_port} with DB validation")
     
     # Start liveness background thread (daemon so it won't block shutdown)
     t = threading.Thread(target=_liveness_loop, name="liveness", daemon=True)

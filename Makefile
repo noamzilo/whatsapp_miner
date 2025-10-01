@@ -77,17 +77,18 @@ generate-env-example:
 # ────────────────────────────────────────────────────────────────────────────
 
 health:
-	@echo "🏥 Checking service health..."
-	@echo -n "Miner (port 8000): "
-	@curl -sf http://localhost:8000/health && echo "✅ Healthy" || echo "❌ Unhealthy"
-	@echo -n "Classifier (port 8001): "
-	@curl -sf http://localhost:8001/health && echo "✅ Healthy" || echo "❌ Unhealthy"
+	@echo "🏥 Checking local container health (works for dev and prod)..."
+	@docker ps --filter "name=whatsapp_miner" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner" || echo "No containers running"
 
-health-wait:
-	@echo "⏳ Waiting for services to become healthy..."
-	@timeout 120 bash -c 'until curl -sf http://localhost:8000/health >/dev/null 2>&1; do sleep 2; echo -n "."; done' && echo " Miner ready ✅"
-	@timeout 120 bash -c 'until curl -sf http://localhost:8001/health >/dev/null 2>&1; do sleep 2; echo -n "."; done' && echo " Classifier ready ✅"
-	@echo "🎉 All services healthy!"
+health-remote:
+	@echo "🏥 Checking health on remote server..."
+	@echo "Usage: SSH_HOST=host SSH_USER=user SSH_KEY=~/.ssh/key.pem make health-remote"
+	@if [ -z "$$SSH_HOST" ] || [ -z "$$SSH_USER" ] || [ -z "$$SSH_KEY" ]; then \
+		echo "❌ Error: Set SSH_HOST, SSH_USER, and SSH_KEY environment variables"; \
+		exit 1; \
+	fi
+	@ssh -i $$SSH_KEY $$SSH_USER@$$SSH_HOST \
+		'docker ps --filter "name=whatsapp_miner" --format "table {{.Names}}\t{{.Status}}"'
 
 # ────────────────────────────────────────────────────────────────────────────
 # Utilities

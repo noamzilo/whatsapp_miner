@@ -6,17 +6,20 @@ import threading
 import logging
 import uvicorn
 from fastapi import FastAPI
-from typing import Optional
+from fastapi.responses import JSONResponse
+from typing import Optional, Callable
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 
-def create_health_app(service_name: str) -> FastAPI:
+def create_health_app(service_name: str, health_check_fn: Optional[Callable] = None) -> FastAPI:
     """
     Create a minimal FastAPI app with health endpoint.
     
     Args:
         service_name: Name of the service (for logging/identification)
+        health_check_fn: Optional function to call for deep health checks (e.g., DB validation)
     
     Returns:
         FastAPI application instance
@@ -33,12 +36,27 @@ def create_health_app(service_name: str) -> FastAPI:
     async def health_check():
         """
         Health check endpoint for Docker health checks and load balancers.
-        Returns 200 OK if the service is running.
+        Returns 200 OK if the service is healthy, 503 if unhealthy.
         """
-        return {
-            "status": "healthy",
+        result = {
             "service": service_name,
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat()
         }
+        
+        # If app provided a health check function, call it
+        if health_check_fn:
+            try:
+                health_check_fn()  # App validates its own state (e.g., DB connection)
+                result["checks"] = "passed"
+            except Exception as e:
+                result["status"] = "unhealthy"
+                result["checks"] = "failed"
+                result["error"] = str(e)
+                logger.warning(f"Health check failed for {service_name}: {e}")
+                return JSONResponse(status_code=503, content=result)
+        
+        return result
     
     @app.get("/")
     async def root():
@@ -50,6 +68,7 @@ def create_health_app(service_name: str) -> FastAPI:
 
 def start_health_server(
     service_name: str,
+    health_check_fn: Optional[Callable] = None,
     port: int = 8000,
     host: str = "0.0.0.0"
 ) -> Optional[threading.Thread]:
@@ -58,13 +77,14 @@ def start_health_server(
     
     Args:
         service_name: Name of the service
+        health_check_fn: Optional function to call for deep health checks
         port: Port to listen on (default: 8000)
         host: Host to bind to (default: 0.0.0.0)
     
     Returns:
         Thread object running the server, or None if failed to start
     """
-    app = create_health_app(service_name)
+    app = create_health_app(service_name, health_check_fn)
     
     def run_server():
         """Run uvicorn server (blocking call)."""
