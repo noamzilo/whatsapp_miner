@@ -1,4 +1,4 @@
-.PHONY: dev prod-local test-deploy test-deploy-prod sync-secrets clean logs shell-miner shell-classifier help
+.PHONY: dev-local dev-local-detached prod-local prod-local-detached dev-deploy prod-deploy sync-secrets clean logs shell-miner shell-classifier help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -8,43 +8,47 @@
 # Local Development (daily use)
 # ────────────────────────────────────────────────────────────────────────────
 
-dev:
-	@echo "🚀 Starting dev environment with Doppler..."
-	@echo "📝 Writing secrets to .env..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format docker --no-file --silent > .env
-	@ENV_FILE=$$(pwd)/.env ./scripts/load-env-and-run.sh .env -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build
-	@rm -f .env
+dev-local:
+	@echo "🚀 Starting dev environment locally..."
+	@echo "📝 Updating .env.dev from Doppler..."
+	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format docker --no-file --silent > .env.dev
+	@./scripts/docker-compose-with-env.sh .env.dev -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build
 
-dev-detached:
-	@echo "🚀 Starting dev environment in background..."
-	@echo "📝 Writing secrets to .env..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format docker --no-file --silent > .env
-	@ENV_FILE=$$(pwd)/.env ./scripts/load-env-and-run.sh .env -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
-	@echo "✓ Secrets written and containers started"
-
-# ────────────────────────────────────────────────────────────────────────────
-# Production Testing Locally
-# ────────────────────────────────────────────────────────────────────────────
-
-prod-local: sync-secrets
-	@echo "🚀 Starting production config locally..."
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --env-file .env.prod up --build
-
-prod-local-detached: sync-secrets
-	@echo "🚀 Starting production config in background..."
-	docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml --env-file .env.prod up -d --build
+dev-local-detached:
+	@echo "🚀 Starting dev environment locally (background)..."
+	@echo "📝 Updating .env.dev from Doppler..."
+	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format docker --no-file --silent > .env.dev
+	@./scripts/docker-compose-with-env.sh .env.dev -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
+	@echo "✓ Dev environment started"
 
 # ────────────────────────────────────────────────────────────────────────────
-# CI/CD Testing with act
+# Local Production Testing
 # ────────────────────────────────────────────────────────────────────────────
 
-test-deploy: sync-secrets
-	@echo "🧪 Testing deploy workflow with act (dev config)..."
-	act workflow_dispatch -W .github/workflows/deploy.yml --secret-file .secrets.dev
+prod-local:
+	@echo "🚀 Starting prod environment locally..."
+	@echo "📝 Updating .env.prod from Doppler..."
+	@doppler secrets download --project whatsapp_miner_backend --config prd --format docker --no-file --silent > .env.prod
+	@./scripts/docker-compose-with-env.sh .env.prod -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --build
 
-test-deploy-prod: sync-secrets
-	@echo "🧪 Testing deploy workflow with act (prod config)..."
-	act workflow_dispatch -W .github/workflows/deploy.yml --secret-file .secrets.prod
+prod-local-detached:
+	@echo "🚀 Starting prod environment locally (background)..."
+	@echo "📝 Updating .env.prod from Doppler..."
+	@doppler secrets download --project whatsapp_miner_backend --config prd --format docker --no-file --silent > .env.prod
+	@./scripts/docker-compose-with-env.sh .env.prod -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
+	@echo "✓ Prod environment started"
+
+# ────────────────────────────────────────────────────────────────────────────
+# Remote Deployment Testing with act
+# ────────────────────────────────────────────────────────────────────────────
+
+dev-deploy: sync-secrets
+	@echo "🧪 Testing dev deployment with act..."
+	act workflow_dispatch -W .github/workflows/deploy.yml --secret-file .env.dev --var ENV_NAME=dev
+
+prod-deploy: sync-secrets
+	@echo "🧪 Testing prod deployment with act..."
+	act workflow_dispatch -W .github/workflows/deploy.yml --secret-file .env.prod --var ENV_NAME=prod
 
 # ────────────────────────────────────────────────────────────────────────────
 # Secret Management
@@ -52,11 +56,9 @@ test-deploy-prod: sync-secrets
 
 sync-secrets:
 	@echo "🔐 Syncing secrets from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .env.local
-	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .secrets.dev
-	@doppler secrets download --project whatsapp_miner_backend --config prd --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .env.prod
-	@doppler secrets download --project whatsapp_miner_backend --config prd --format env --no-file --silent | sed 's/="\(.*\)"/=\1/' > .secrets.prod
-	@echo "✓ Secrets synced to .env.local, .env.prod, .secrets.dev, .secrets.prod"
+	@doppler secrets download --project whatsapp_miner_backend --config dev_personal --format docker --no-file --silent > .env.dev
+	@doppler secrets download --project whatsapp_miner_backend --config prd --format docker --no-file --silent > .env.prod
+	@echo "✓ Secrets synced to .env.dev and .env.prod"
 
 generate-env-example:
 	@echo "📝 Generating .env.example from Doppler..."
@@ -130,37 +132,38 @@ help:
 	@echo "WhatsApp Miner - Available Commands"
 	@echo "════════════════════════════════════════════════════════════════════"
 	@echo ""
-	@echo "Development:"
-	@echo "  make dev              - Start dev environment (live Doppler secrets)"
-	@echo "  make dev-detached     - Start dev environment in background"
-	@echo "  make prod-local       - Test production config locally"
+	@echo "Local Development:"
+	@echo "  make dev-local              - Start dev environment locally"
+	@echo "  make dev-local-detached     - Start dev environment locally (background)"
+	@echo "  make prod-local             - Start prod environment locally"
+	@echo "  make prod-local-detached    - Start prod environment locally (background)"
 	@echo ""
-	@echo "CI/CD Testing:"
-	@echo "  make test-deploy      - Test deploy workflow locally (dev)"
-	@echo "  make test-deploy-prod - Test deploy workflow locally (prod)"
+	@echo "Remote Deployment Testing:"
+	@echo "  make dev-deploy             - Test dev deployment with act"
+	@echo "  make prod-deploy            - Test prod deployment with act"
 	@echo ""
 	@echo "Health Checks:"
-	@echo "  make health           - Check if services are healthy"
-	@echo "  make health-wait      - Wait for services to become healthy"
+	@echo "  make health                 - Check if services are healthy"
+	@echo "  make health-wait            - Wait for services to become healthy"
 	@echo ""
 	@echo "Secrets:"
-	@echo "  make sync-secrets     - Sync all secrets from Doppler"
-	@echo "  make generate-env-example - Generate .env.example template"
+	@echo "  make sync-secrets           - Update .env.dev and .env.prod from Doppler"
+	@echo "  make generate-env-example   - Generate .env.example template"
 	@echo ""
 	@echo "Logs:"
-	@echo "  make logs             - Tail all service logs"
-	@echo "  make logs-miner       - Tail miner logs"
-	@echo "  make logs-classifier  - Tail classifier logs"
-	@echo "  make logs-migrate     - Show migration logs"
+	@echo "  make logs                   - Tail all service logs"
+	@echo "  make logs-miner             - Tail miner logs"
+	@echo "  make logs-classifier        - Tail classifier logs"
+	@echo "  make logs-migrate           - Show migration logs"
 	@echo ""
 	@echo "Utilities:"
-	@echo "  make ps               - Show container status"
-	@echo "  make shell-miner      - Shell into miner container"
-	@echo "  make shell-classifier - Shell into classifier container"
-	@echo "  make restart          - Restart all services"
-	@echo "  make stop             - Stop all services"
-	@echo "  make clean            - Remove all containers and volumes"
-	@echo "  make help             - Show this help message"
+	@echo "  make ps                     - Show container status"
+	@echo "  make shell-miner            - Shell into miner container"
+	@echo "  make shell-classifier       - Shell into classifier container"
+	@echo "  make restart                - Restart all services"
+	@echo "  make stop                   - Stop all services"
+	@echo "  make clean                  - Remove all containers and volumes"
+	@echo "  make help                   - Show this help message"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
 

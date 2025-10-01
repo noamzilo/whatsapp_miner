@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Helper script to load .env and run docker compose with env vars available
-# This ensures env vars are available both for compose file substitution AND containers
+# Loads environment variables from a .env file and runs docker compose
+# Handles values with spaces, exports vars for compose substitution, and passes to containers
 
 set -euo pipefail
 
