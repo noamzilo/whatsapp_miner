@@ -186,24 +186,71 @@ jobs:
       
       - name: Verify deployment
         run: |
-          echo "⏳ Waiting for services to be healthy..."
+          echo "⏳ Waiting for services to start (30s)..."
           sleep 30
           
           ssh -i ~/.ssh/deploy_key.pem \
             ${{ secrets.AWS_EC2_USERNAME }}@${{ secrets.AWS_EC2_HOST_ADDRESS }} << 'ENDSSH'
           
+          set -e  # Exit on any error
           cd ${{ secrets.AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER }}
           
-          # Check container health
-          if docker ps | grep -q "whatsapp_miner.*healthy"; then
-            echo "✅ Services are healthy"
-            exit 0
-          else
-            echo "❌ Services are not healthy"
-            docker ps
+          echo "🔍 Checking container health..."
+          
+          # Check if containers are running
+          if ! docker ps | grep -q "whatsapp_miner"; then
+            echo "❌ ERROR: No whatsapp_miner containers are running"
+            echo ""
+            echo "Container status:"
+            docker ps -a --filter "name=whatsapp_miner"
+            echo ""
+            echo "Recent logs from miner:"
+            docker logs --tail 50 whatsapp_miner_miner_${{ env.ENV_NAME }} 2>&1 || echo "Failed to get miner logs"
+            echo ""
+            echo "Recent logs from classifier:"
+            docker logs --tail 50 whatsapp_miner_classifier_${{ env.ENV_NAME }} 2>&1 || echo "Failed to get classifier logs"
             exit 1
           fi
           
+          # Wait for health checks (max 2 minutes)
+          TIMEOUT=120
+          ELAPSED=0
+          
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            MINER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_miner_${{ env.ENV_NAME }}" --format "{{.Status}}" | grep -c "healthy" || echo "0")
+            CLASSIFIER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_classifier_${{ env.ENV_NAME }}" --format "{{.Status}}" | grep -c "healthy" || echo "0")
+            
+            if [ "$MINER_HEALTHY" = "1" ] && [ "$CLASSIFIER_HEALTHY" = "1" ]; then
+              echo "✅ All services are healthy!"
+              docker ps --filter "name=whatsapp_miner"
+              exit 0
+            fi
+            
+            echo "⏳ Waiting for health checks... (${ELAPSED}s/${TIMEOUT}s)"
+            echo "   Miner: $([ "$MINER_HEALTHY" = "1" ] && echo "✅ healthy" || echo "❌ not healthy yet")"
+            echo "   Classifier: $([ "$CLASSIFIER_HEALTHY" = "1" ] && echo "✅ healthy" || echo "❌ not healthy yet")"
+            
+            sleep 10
+            ELAPSED=$((ELAPSED + 10))
+          done
+          
+          # Health check timeout - show detailed error info
+          echo ""
+          echo "❌ ERROR: Health check timeout after ${TIMEOUT}s"
+          echo ""
+          echo "Container status:"
+          docker ps -a --filter "name=whatsapp_miner"
+          echo ""
+          echo "Miner logs (last 100 lines):"
+          docker logs --tail 100 whatsapp_miner_miner_${{ env.ENV_NAME }} 2>&1
+          echo ""
+          echo "Classifier logs (last 100 lines):"
+          docker logs --tail 100 whatsapp_miner_classifier_${{ env.ENV_NAME }} 2>&1
+          echo ""
+          echo "Migration logs:"
+          docker logs docker-migrate-1 2>&1 || echo "No migration logs available"
+          
+          exit 1
           ENDSSH
       
       - name: Cleanup
