@@ -44,11 +44,17 @@ prod-local-detached:
 
 dev-deploy: sync-secrets
 	@echo "🧪 Testing dev deployment with act..."
-	act workflow_dispatch -W .github/workflows/deploy.yml --secret-file .env.dev --var ENV_NAME=dev
+	@act workflow_dispatch \
+		-W .github/workflows/deploy.yml \
+		--secret-file .env.dev \
+		--input environment=dev
 
 prod-deploy: sync-secrets
 	@echo "🧪 Testing prod deployment with act..."
-	act workflow_dispatch -W .github/workflows/deploy.yml --secret-file .env.prod --var ENV_NAME=prod
+	@act workflow_dispatch \
+		-W .github/workflows/deploy.yml \
+		--secret-file .env.prod \
+		--input environment=prod
 
 # ────────────────────────────────────────────────────────────────────────────
 # Secret Management
