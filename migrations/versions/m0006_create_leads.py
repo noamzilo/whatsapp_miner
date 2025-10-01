@@ -7,8 +7,8 @@ Non-lead messages should NOT be stored in this table.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0006"
-down_revision = "0005"
+revision = "m0006"
+down_revision = "m0005"
 branch_labels = None
 depends_on = None
 
