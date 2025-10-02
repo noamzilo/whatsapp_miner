@@ -4,27 +4,27 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy (dev/prod)'
+        description: 'Environment to deploy (stg/prod)'
         required: true
-        default: 'dev'
+        default: 'stg'
         type: choice
         options:
-          - dev
+          - stg
           - prod
   push:
     branches:
-      - main  # deploys prod
-      - dev   # deploys dev
+      - main   # deploys prod
+      - stage  # deploys stg
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     
     # Determine environment from branch or manual input
-    environment: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'dev') }}
+    environment: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'stg') }}
     
     env:
-      ENV_NAME: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'dev') }}
+      ENV_NAME: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'stg') }}
       AWS_REGION: ${{ secrets.AWS_EC2_REGION }}
     
     steps:
@@ -155,12 +155,14 @@ jobs:
           
           # Deploy with docker compose (pull latest images)
           ./docker-compose-with-env.sh .env.${{ env.ENV_NAME }} \
+            -p whatsapp_miner_${{ env.ENV_NAME }} \
             -f docker-compose.yml \
             -f docker-compose.prod.yml \
             pull
           
           # Start services (Docker auto-detects image changes and recreates only changed containers)
           ./docker-compose-with-env.sh .env.${{ env.ENV_NAME }} \
+            -p whatsapp_miner_${{ env.ENV_NAME }} \
             -f docker-compose.yml \
             -f docker-compose.prod.yml \
             up -d --no-build --remove-orphans
@@ -168,7 +170,7 @@ jobs:
           echo "✓ Deployment complete"
           
           # Show container status
-          docker ps --filter "name=whatsapp_miner"
+          docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
           
           ENDSSH
       
@@ -185,17 +187,17 @@ jobs:
           echo "🔍 Checking container health..."
           
           # Check if containers are running
-          if ! docker ps | grep -q "whatsapp_miner"; then
-            echo "❌ ERROR: No whatsapp_miner containers are running"
+          if ! docker ps | grep -q "whatsapp_miner_${{ env.ENV_NAME }}"; then
+            echo "❌ ERROR: No whatsapp_miner_${{ env.ENV_NAME }} containers are running"
             echo ""
             echo "Container status:"
-            docker ps -a --filter "name=whatsapp_miner"
+            docker ps -a --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
             echo ""
             echo "Recent logs from miner:"
-            docker logs --tail 50 whatsapp_miner_miner_${{ env.ENV_NAME }} 2>&1 || echo "Failed to get miner logs"
+            docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs --tail 50 miner 2>&1 || echo "Failed to get miner logs"
             echo ""
             echo "Recent logs from classifier:"
-            docker logs --tail 50 whatsapp_miner_classifier_${{ env.ENV_NAME }} 2>&1 || echo "Failed to get classifier logs"
+            docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs --tail 50 classifier 2>&1 || echo "Failed to get classifier logs"
             exit 1
           fi
           
@@ -204,12 +206,12 @@ jobs:
           ELAPSED=0
           
           while [ $ELAPSED -lt $TIMEOUT ]; do
-            MINER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_miner_${{ env.ENV_NAME }}" --format "{{.Status}}" | grep -c "healthy" || echo "0")
-            CLASSIFIER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_classifier_${{ env.ENV_NAME }}" --format "{{.Status}}" | grep -c "healthy" || echo "0")
+            MINER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}_miner" --format "{{.Status}}" | grep -c "healthy" || echo "0")
+            CLASSIFIER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}_classifier" --format "{{.Status}}" | grep -c "healthy" || echo "0")
             
             if [ "$MINER_HEALTHY" = "1" ] && [ "$CLASSIFIER_HEALTHY" = "1" ]; then
               echo "✅ All services are healthy!"
-              docker ps --filter "name=whatsapp_miner"
+              docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
               exit 0
             fi
             
@@ -226,16 +228,16 @@ jobs:
           echo "❌ ERROR: Health check timeout after ${TIMEOUT}s"
           echo ""
           echo "Container status:"
-          docker ps -a --filter "name=whatsapp_miner"
+          docker ps -a --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
           echo ""
           echo "Miner logs (last 100 lines):"
-          docker logs --tail 100 whatsapp_miner_miner_${{ env.ENV_NAME }} 2>&1
+          docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs --tail 100 miner 2>&1
           echo ""
           echo "Classifier logs (last 100 lines):"
-          docker logs --tail 100 whatsapp_miner_classifier_${{ env.ENV_NAME }} 2>&1
+          docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs --tail 100 classifier 2>&1
           echo ""
           echo "Migration logs:"
-          docker logs docker-migrate-1 2>&1 || echo "No migration logs available"
+          docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs migrate 2>&1 || echo "No migration logs available"
           
           exit 1
           ENDSSH

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Loads environment variables from a .env file and runs docker compose
 # Handles values with spaces, exports vars for compose substitution, and passes to containers
+# Supports -p project name parameter
 
 set -euo pipefail
 
@@ -38,6 +39,6 @@ set +a
 # Cleanup
 rm -f "$temp_env"
 
-# Run docker compose (ENV_FILE is already exported and absolute)
+# Run docker compose with all arguments (including -p project name)
 exec docker compose "$@"
 
