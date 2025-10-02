@@ -104,15 +104,15 @@ health-local:
 
 health-local-dev:
 	@echo "🏥 Checking dev container health..."
-	@docker ps --filter "name=whatsapp_miner_dev" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner_dev" || echo "No dev containers running"
+	@docker ps --filter "name=whatsapp_miner.*_dev" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner.*_dev" || echo "No dev containers running"
 
 health-local-stg:
 	@echo "🏥 Checking stg container health..."
-	@docker ps --filter "name=whatsapp_miner_stg" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner_stg" || echo "No stg containers running"
+	@docker ps --filter "name=whatsapp_miner.*_stg" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner.*_stg" || echo "No stg containers running"
 
 health-local-prod:
 	@echo "🏥 Checking prod container health..."
-	@docker ps --filter "name=whatsapp_miner_prod" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner_prod" || echo "No prod containers running"
+	@docker ps --filter "name=whatsapp_miner.*_prod" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner.*_prod" || echo "No prod containers running"
 
 health-remote-stg:
 	@echo "🏥 Checking health on stg EC2..."
@@ -121,7 +121,7 @@ health-remote-stg:
 		chmod 400 /tmp/temp_key.pem && \
 		trap "rm -f /tmp/temp_key.pem" EXIT && \
 		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"docker ps --filter \"name=whatsapp_miner_stg\" --format \"table {{.Names}}\t{{.Status}}\""'
+			"docker ps --filter \"name=whatsapp_miner.*_stg\" --format \"table {{.Names}}\t{{.Status}}\""'
 
 health-remote-prod:
 	@echo "🏥 Checking health on prod EC2..."
@@ -130,7 +130,7 @@ health-remote-prod:
 		chmod 400 /tmp/temp_key.pem && \
 		trap "rm -f /tmp/temp_key.pem" EXIT && \
 		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"docker ps --filter \"name=whatsapp_miner_prod\" --format \"table {{.Names}}\t{{.Status}}\""'
+			"docker ps --filter \"name=whatsapp_miner.*_prod\" --format \"table {{.Names}}\t{{.Status}}\""'
 
 # ────────────────────────────────────────────────────────────────────────────
 # Remote Access
@@ -254,13 +254,13 @@ shell-classifier-stg:
 ps:
 	@echo "📊 Container status:"
 	@echo "Dev containers:"
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml ps 2>/dev/null || echo "No dev containers"
+	@docker ps --filter "name=whatsapp_miner.*_dev" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No dev containers"
 	@echo ""
 	@echo "Stg containers:"
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml ps 2>/dev/null || echo "No stg containers"
+	@docker ps --filter "name=whatsapp_miner.*_stg" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No stg containers"
 	@echo ""
 	@echo "Prod containers:"
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml ps 2>/dev/null || echo "No prod containers"
+	@docker ps --filter "name=whatsapp_miner.*_prod" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No prod containers"
 
 restart-dev:
 	@echo "🔄 Restarting dev services..."
