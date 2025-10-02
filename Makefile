@@ -71,18 +71,9 @@ generate-env-example:
 # Health Checks
 # ────────────────────────────────────────────────────────────────────────────
 
-health:
+health-local:
 	@echo "🏥 Checking local container health (works for dev and prod)..."
 	@docker ps --filter "name=whatsapp_miner" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner" || echo "No containers running"
-
-health-remote-dev:
-	@echo "🏥 Checking health on dev EC2..."
-	@doppler run --project whatsapp_miner_backend --config dev_personal --command '\
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
-		chmod 400 /tmp/temp_key.pem && \
-		trap "rm -f /tmp/temp_key.pem" EXIT && \
-		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"docker ps --filter \"name=whatsapp_miner\" --format \"table {{.Names}}\t{{.Status}}\""'
 
 health-remote-prod:
 	@echo "🏥 Checking health on prod EC2..."
