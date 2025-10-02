@@ -187,11 +187,11 @@ jobs:
           echo "🔍 Checking container health..."
           
           # Check if containers are running
-          if ! docker ps | grep -q "whatsapp_miner_${{ env.ENV_NAME }}"; then
-            echo "❌ ERROR: No whatsapp_miner_${{ env.ENV_NAME }} containers are running"
+          if ! docker ps | grep -q "whatsapp_miner.*_${{ env.ENV_NAME }}"; then
+            echo "❌ ERROR: No whatsapp_miner containers for ${{ env.ENV_NAME }} are running"
             echo ""
             echo "Container status:"
-            docker ps -a --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
+            docker ps -a --filter "name=whatsapp_miner"
             echo ""
             echo "Recent logs from miner:"
             docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs --tail 50 miner 2>&1 || echo "Failed to get miner logs"
@@ -206,12 +206,12 @@ jobs:
           ELAPSED=0
           
           while [ $ELAPSED -lt $TIMEOUT ]; do
-            MINER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}_miner" --format "{{.Status}}" | grep -c "healthy" || echo "0")
-            CLASSIFIER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}_classifier" --format "{{.Status}}" | grep -c "healthy" || echo "0")
+            MINER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_miner_${{ env.ENV_NAME }}" --format "{{.Status}}" | grep -c "healthy" || echo "0")
+            CLASSIFIER_HEALTHY=$(docker ps --filter "name=whatsapp_miner_classifier_${{ env.ENV_NAME }}" --format "{{.Status}}" | grep -c "healthy" || echo "0")
             
             if [ "$MINER_HEALTHY" = "1" ] && [ "$CLASSIFIER_HEALTHY" = "1" ]; then
               echo "✅ All services are healthy!"
-              docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
+              docker ps --filter "name=whatsapp_miner.*_${{ env.ENV_NAME }}"
               exit 0
             fi
             
@@ -228,7 +228,7 @@ jobs:
           echo "❌ ERROR: Health check timeout after ${TIMEOUT}s"
           echo ""
           echo "Container status:"
-          docker ps -a --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
+          docker ps -a --filter "name=whatsapp_miner.*_${{ env.ENV_NAME }}"
           echo ""
           echo "Miner logs (last 100 lines):"
           docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs --tail 100 miner 2>&1
