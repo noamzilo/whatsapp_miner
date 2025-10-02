@@ -42,15 +42,6 @@ prod-local-detached:
 # Remote Deployment Testing with act
 # ────────────────────────────────────────────────────────────────────────────
 
-dev-deploy: sync-secrets
-	@echo "🧪 Testing dev deployment with act..."
-	@act workflow_dispatch \
-		-W .github/workflows/deploy.yml \
-		--secret-file .env.dev \
-		--input environment=dev \
-		--container-daemon-socket /var/run/docker.sock \
-		--container-options "--group-add $(shell getent group docker | cut -d: -f3)"
-
 prod-deploy: sync-secrets
 	@echo "🧪 Testing prod deployment with act..."
 	@act workflow_dispatch \
