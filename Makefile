@@ -1,4 +1,4 @@
-.PHONY: dev-local dev-local-detached prod-local prod-local-detached dev-deploy prod-deploy sync-secrets clean logs shell-miner shell-classifier help
+.PHONY: dev-local dev-local-detached prod-local prod-local-detached dev-deploy prod-deploy sync-secrets clean logs shell-miner shell-classifier psql-dev psql-prod run-migrations-dev run-migrations-prod help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -105,6 +105,30 @@ ssh-prod:
 		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS'
 
 # ────────────────────────────────────────────────────────────────────────────
+# Database Access
+# ────────────────────────────────────────────────────────────────────────────
+
+psql-dev:
+	@echo "🐘 Connecting to dev database..."
+	@doppler run --project whatsapp_miner_backend --config dev --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+
+psql-prod:
+	@echo "🐘 Connecting to prod database..."
+	@doppler run --project whatsapp_miner_backend --config prd --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+
+# ────────────────────────────────────────────────────────────────────────────
+# Database Migrations
+# ────────────────────────────────────────────────────────────────────────────
+
+run-migrations-dev:
+	@echo "🔄 Running migrations for dev environment..."
+	@doppler run --project whatsapp_miner_backend --config dev --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+
+run-migrations-prod:
+	@echo "🔄 Running migrations for prod environment..."
+	@doppler run --project whatsapp_miner_backend --config prd --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+
+# ────────────────────────────────────────────────────────────────────────────
 # Utilities
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -171,6 +195,14 @@ help:
 	@echo "Remote Access:"
 	@echo "  make ssh-dev                - SSH into dev EC2 instance"
 	@echo "  make ssh-prod               - SSH into prod EC2 instance"
+	@echo ""
+	@echo "Database Access:"
+	@echo "  make psql-dev               - Connect to dev database"
+	@echo "  make psql-prod              - Connect to prod database"
+	@echo ""
+	@echo "Database Migrations:"
+	@echo "  make run-migrations-dev     - Run migrations for dev environment"
+	@echo "  make run-migrations-prod    - Run migrations for prod environment"
 	@echo ""
 	@echo "Secrets:"
 	@echo "  make sync-secrets           - Update .env.dev and .env.prod from Doppler"
