@@ -296,8 +296,8 @@ shell-classifier-prod:
 shell-classifier-stg:
 	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml exec classifier bash
 
-ps:
-	@echo "📊 Container status:"
+ps-local:
+	@echo "📊 Local container status:"
 	@echo "Dev containers:"
 	@docker ps --filter "name=whatsapp_miner.*_dev" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No dev containers"
 	@echo ""
@@ -306,6 +306,29 @@ ps:
 	@echo ""
 	@echo "Prod containers:"
 	@docker ps --filter "name=whatsapp_miner.*_prod" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No prod containers"
+
+ps-remote:
+	@echo "📊 Remote container status:"
+	@echo "Stg containers on EC2:"
+	@doppler run --project whatsapp_miner_backend --config stg --command '\
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+			"docker ps --filter \"name=whatsapp_miner.*_stg\" --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\""' 2>/dev/null || echo "No stg containers on remote"
+	@echo ""
+	@echo "Prod containers on EC2:"
+	@doppler run --project whatsapp_miner_backend --config prd --command '\
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+			"docker ps --filter \"name=whatsapp_miner.*_prod\" --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\""' 2>/dev/null || echo "No prod containers on remote"
+
+ps: ps-local ps-remote
+	@echo "📊 Container status complete"
 
 restart-dev:
 	@echo "🔄 Restarting dev services..."
@@ -392,7 +415,9 @@ help:
 	@echo "  make logs-classifier-prod   - Tail prod classifier logs"
 	@echo ""
 	@echo "Utilities:"
-	@echo "  make ps                     - Show container status for all projects"
+	@echo "  make ps                     - Show container status for all projects (local + remote)"
+	@echo "  make ps-local               - Show local container status for all projects"
+	@echo "  make ps-remote              - Show remote container status on EC2"
 	@echo "  make shell-miner-dev        - Shell into dev miner container"
 	@echo "  make shell-miner-stg        - Shell into stg miner container"
 	@echo "  make shell-miner-prod       - Shell into prod miner container"
