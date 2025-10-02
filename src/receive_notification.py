@@ -32,54 +32,54 @@ greenAPI = API.GreenAPI(
 # message_queue = RedisMessageQueue()  # Temporarily disabled
 
 def _liveness_loop() -> None:
-    """Background liveness logger that emits a heartbeat every 30 minutes."""
-    interval = 30 * 60  # seconds
-    while True:
-        try:
-            logger.info("🟢 Miner liveness: receive_notification up and running")
-        except Exception:  # logging should not crash the process
-            pass
-        finally:
-            threading.Event().wait(interval)
+	"""Background liveness logger that emits a heartbeat every 30 minutes."""
+	interval = 30 * 60  # seconds
+	while True:
+		try:
+			logger.info("🟢 Miner liveness: receive_notification up and running")
+		except Exception:  # logging should not crash the process
+			pass
+		finally:
+			threading.Event().wait(interval)
 
 
 def check_miner_health():
-    """
-    Validate miner health by checking database connection.
-    Raises exception if unhealthy.
-    """
-    from sqlalchemy import text
-    SessionLocal = get_session_local()
-    session = SessionLocal()
-    try:
-        # Quick DB validation query
-        session.execute(text("SELECT 1"))
-    finally:
-        session.close()
+	"""
+	Validate miner health by checking database connection.
+	Raises exception if unhealthy.
+	"""
+	from sqlalchemy import text
+	SessionLocal = get_session_local()
+	session = SessionLocal()
+	try:
+		# Quick DB validation query
+		session.execute(text("SELECT 1"))
+	finally:
+		session.close()
 
 
 def main():
-    logger.info("🟢 Miner starting: initializing webhooks receiver")
-    
-    # Start health check server for Docker health checks
-    health_port = int(os.getenv("HEALTH_PORT", "8000"))
-    start_health_server("whatsapp-miner", health_check_fn=check_miner_health, port=health_port)
-    logger.info(f"✅ Health server started on port {health_port} with DB validation")
-    
-    # Start liveness background thread (daemon so it won't block shutdown)
-    t = threading.Thread(target=_liveness_loop, name="liveness", daemon=True)
-    t.start()
-    print(f"polling started   ")
-    print("hi=t6")
-    greenAPI.webhooks.startReceivingNotifications(handler)
-    print("this will never print if startReceivingNotifications is blocking")
+	logger.info("🟢 Miner starting: initializing webhooks receiver")
+
+	# Start health check server for Docker health checks
+	health_port = int(os.getenv("HEALTH_PORT", "8000"))
+	start_health_server("whatsapp-miner", health_check_fn=check_miner_health, port=health_port)
+	logger.info(f"✅ Health server started on port {health_port} with DB validation")
+
+	# Start liveness background thread (daemon so it won't block shutdown)
+	t = threading.Thread(target=_liveness_loop, name="liveness", daemon=True)
+	t.start()
+	logger.info(f"polling started   ")
+	logger.info("hi=t6")
+	greenAPI.webhooks.startReceivingNotifications(handler)
+	logger.info("this will never print if startReceivingNotifications is blocking")
 
 @event.listens_for(Engine, "connect")
 def print_connection_info(dbapi_connection, connection_record):
-	print(f"[DEBUG] Connecting to database: {database_url}")
+	logger.info(f"[DEBUG] Connecting to database: {database_url}")
 
 def handler(type_webhook: str, body: dict) -> None:
-	print(f"Webhook type: {type_webhook}, Body: {body}")
+	logger.info(f"Webhook type: {type_webhook}, Body: {body}")
 	if type_webhook == "incomingMessageReceived":
 		incoming_message_received(body)
 	elif type_webhook == "outgoingMessageReceived":
@@ -118,7 +118,7 @@ def incoming_message_received(body: dict) -> None:
 		group_name = sender_data.get("chatName", "")            # "Group1"
 
 		if not group_id or not group_id.endswith("@g.us"):
-			print(f"[Skip] Ignoring private message {message_id} from {user_id}")
+			logger.info(f"[Skip] Ignoring private message {message_id} from {user_id}")
 			return
 
 		message_type = message_data.get("typeMessage", "")
@@ -130,12 +130,12 @@ def incoming_message_received(body: dict) -> None:
 
 		# Skip messages under 8 characters
 		if len(message_text.strip()) < 8:
-			print(f"[Skip] Message {message_id} too short (under 8 characters): '{message_text}'")
+			logger.info(f"[Skip] Message {message_id} too short (under 8 characters): '{message_text}'")
 			return
 
 		# Skip if already exists
 		if get_message_by_message_id(session, message_id):
-			print(f"[Skip] Message {message_id} already in DB.")
+			logger.info(f"[Skip] Message {message_id} already in DB.")
 			return
 
 		# Upsert user
@@ -168,7 +168,7 @@ def incoming_message_received(body: dict) -> None:
 		)
 		session.add(new_msg)
 		session.commit()
-		print(f"[OK] Inserted group message {message_id} from user {user_id} in group {group_id}")
+		logger.info(f"[OK] Inserted group message {message_id} from user {user_id} in group {group_id}")
 
 		# Publish message to Redis Streams for multi-environment processing
 		queue_message_data = {
@@ -189,7 +189,7 @@ def incoming_message_received(body: dict) -> None:
 
 	except IntegrityError:
 		session.rollback()
-		print(f"[Error] Integrity issue on message {message_id}")
+		logger.info(f"[Error] Integrity issue on message {message_id}")
 	except Exception as e:
 		session.rollback()
 		logger.error(f"❌ Failed to process message: {e}")
@@ -203,7 +203,7 @@ def outgoing_message_received(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	print(f"New outgoing message at {time} with data: {data}", end="\n\n")
+	logger.info(f"New outgoing message at {time} with data: {data}", end="\n\n")
 
 def outgoing_api_message_received(body: dict) -> None:
 	timestamp = body["timestamp"]
@@ -211,7 +211,7 @@ def outgoing_api_message_received(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	print(f"New outgoing API message at {time} with data: {data}", end="\n\n")
+	logger.info(f"New outgoing API message at {time} with data: {data}", end="\n\n")
 
 
 def outgoing_message_status(body: dict) -> None:
@@ -223,7 +223,7 @@ def outgoing_message_status(body: dict) -> None:
 	response = (
 		f"Status of sent message has been updated at {time} with data: {data}"
 	)
-	print(response, end="\n\n")
+	logger.info(response, end="\n\n")
 
 
 def state_instance_changed(body: dict) -> None:
@@ -232,7 +232,7 @@ def state_instance_changed(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	print(f"Current instance state at {time} with data: {data}", end="\n\n")
+	logger.info(f"Current instance state at {time} with data: {data}", end="\n\n")
 
 
 def device_info(body: dict) -> None:
@@ -244,7 +244,7 @@ def device_info(body: dict) -> None:
 	response = (
 		f"Current device information at {time} with data: {data}"
 	)
-	print(response, end="\n\n")
+	logger.info(response, end="\n\n")
 
 def incoming_call(body: dict) -> None:
 	timestamp = body["timestamp"]
@@ -252,7 +252,7 @@ def incoming_call(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	print(f"New incoming call at {time} with data: {data}", end="\n\n")
+	logger.info(f"New incoming call at {time} with data: {data}", end="\n\n")
 
 
 def status_instance_changed(body: dict) -> None:
@@ -261,11 +261,11 @@ def status_instance_changed(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	print(f"Current instance status at {time} with data: {data}", end="\n\n")
+	logger.info(f"Current instance status at {time} with data: {data}", end="\n\n")
 
 
 if __name__ == '__main__':
-	print("main started in receive_notification.py")
-	print(f"instance_id: {instance_id}, api_token: {api_token[:4]}****")
-	print("polling started")
+	logger.info("main started in receive_notification.py")
+	logger.info(f"instance_id: {instance_id}, api_token: {api_token[:4]}****")
+	logger.info("polling started")
 	main()
