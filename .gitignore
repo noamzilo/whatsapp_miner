@@ -26,3 +26,6 @@ __pycache__/
 # Downloaded files
 /supabase.deb
 /supabase/prod-ca-2021.crt
+
+#pycharm
+.idea/workspace.xml
