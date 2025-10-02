@@ -117,19 +117,21 @@ health-local-prod:
 health-remote-stg:
 	@echo "🏥 Checking health on stg EC2..."
 	@doppler run --project whatsapp_miner_backend --config stg --command '\
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
-		chmod 400 /tmp/temp_key.pem && \
-		trap "rm -f /tmp/temp_key.pem" EXIT && \
-		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS \
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 			"docker ps --filter \"name=whatsapp_miner.*_stg\" --format \"table {{.Names}}\t{{.Status}}\""'
 
 health-remote-prod:
 	@echo "🏥 Checking health on prod EC2..."
 	@doppler run --project whatsapp_miner_backend --config prd --command '\
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
-		chmod 400 /tmp/temp_key.pem && \
-		trap "rm -f /tmp/temp_key.pem" EXIT && \
-		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS \
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 			"docker ps --filter \"name=whatsapp_miner.*_prod\" --format \"table {{.Names}}\t{{.Status}}\""'
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -139,18 +141,20 @@ health-remote-prod:
 ssh-stage:
 	@echo "🔐 Connecting to stage EC2..."
 	@doppler run --project whatsapp_miner_backend --config stg --command '\
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
-		chmod 400 /tmp/temp_key.pem && \
-		trap "rm -f /tmp/temp_key.pem" EXIT && \
-		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS'
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS'
 
 ssh-prod:
 	@echo "🔐 Connecting to prod EC2..."
 	@doppler run --project whatsapp_miner_backend --config prd --command '\
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > /tmp/temp_key.pem && \
-		chmod 400 /tmp/temp_key.pem && \
-		trap "rm -f /tmp/temp_key.pem" EXIT && \
-		ssh -i /tmp/temp_key.pem ubuntu@$$AWS_EC2_HOST_ADDRESS'
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS'
 
 # ────────────────────────────────────────────────────────────────────────────
 # Database Access
@@ -188,12 +192,53 @@ run-migrations-prod:
 # Utilities
 # ────────────────────────────────────────────────────────────────────────────
 
-clean:
-	@echo "🧹 Cleaning up containers and volumes..."
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml -f docker/docker-compose.dev.yml down -v 2>/dev/null || true
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml -f docker/docker-compose.prod.yml down -v 2>/dev/null || true
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml -f docker/docker-compose.prod.yml down -v 2>/dev/null || true
-	@echo "✓ Cleanup complete"
+clean-local:
+	@echo "🧹 Cleaning up local containers and volumes..."
+	@echo "Stopping and removing dev containers..."
+	@docker stop whatsapp_miner_miner_dev whatsapp_miner_classifier_dev 2>/dev/null || true
+	@docker rm whatsapp_miner_miner_dev whatsapp_miner_classifier_dev 2>/dev/null || true
+	@echo "Stopping and removing stg containers..."
+	@docker stop whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true
+	@docker rm whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true
+	@echo "Stopping and removing prod containers..."
+	@docker stop whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true
+	@docker rm whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true
+	@echo "Cleaning up unused volumes..."
+	@docker volume prune -f 2>/dev/null || true
+	@echo "✓ Local cleanup complete"
+
+clean-remote-stg:
+	@echo "🧹 Cleaning up stg containers on remote EC2..."
+	@doppler run --project whatsapp_miner_backend --config stg --command '\
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+			"echo \"Stopping and removing stg containers...\" && \
+			docker stop whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true && \
+			docker rm whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true && \
+			echo \"Cleaning up unused volumes...\" && \
+			docker volume prune -f 2>/dev/null || true && \
+			echo \"✓ Stg cleanup complete\""'
+
+clean-remote-prod:
+	@echo "🧹 Cleaning up prod containers on remote EC2..."
+	@doppler run --project whatsapp_miner_backend --config prd --command '\
+		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
+		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
+		chmod 600 "$$KEY_FILE" && \
+		trap "rm -f $$KEY_FILE" EXIT && \
+		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+			"echo \"Stopping and removing prod containers...\" && \
+			docker stop whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true && \
+			docker rm whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true && \
+			echo \"Cleaning up unused volumes...\" && \
+			docker volume prune -f 2>/dev/null || true && \
+			echo \"✓ Prod cleanup complete\""'
+
+clean: clean-local
+	@echo "🧹 Cleanup complete (local only - use clean-remote-stg or clean-remote-prod for remote)"
 
 logs:
 	@echo "📋 Showing logs for all projects..."
@@ -360,7 +405,10 @@ help:
 	@echo "  make stop-dev               - Stop dev services"
 	@echo "  make stop-stg               - Stop stg services"
 	@echo "  make stop-prod              - Stop prod services"
-	@echo "  make clean                  - Remove all containers and volumes"
+	@echo "  make clean                  - Clean local containers and volumes"
+	@echo "  make clean-local            - Clean local containers and volumes"
+	@echo "  make clean-remote-stg       - Clean stg containers on remote EC2"
+	@echo "  make clean-remote-prod      - Clean prod containers on remote EC2"
 	@echo "  make help                   - Show this help message"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
