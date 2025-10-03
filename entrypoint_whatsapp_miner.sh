@@ -11,4 +11,4 @@ echo "🌍 Environment: ${ENV_NAME:-dev}"
 cd /app
 
 # Run the miner application
-exec python -u /app/src/receive_notification.py
+exec python -u /app/src/message_mining/receive_notification.py
