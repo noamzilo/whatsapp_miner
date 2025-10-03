@@ -1,81 +1,248 @@
-.PHONY: dev-local dev-local-detached prod-local prod-local-detached dev-deploy prod-deploy sync-secrets clean logs shell-miner shell-classifier psql-dev psql-prod run-migrations-dev run-migrations-prod help
+.PHONY: dev-local dev-local-detached stg-local stg-local-detached prod-local prod-local-detached stg-deploy prod-deploy sync-secrets generate-env-example clean clean-local clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
 # ════════════════════════════════════════════════════════════════════════════
 
 # ────────────────────────────────────────────────────────────────────────────
+# Variables
+# ────────────────────────────────────────────────────────────────────────────
+
+# Project and container names
+PROJECT_NAME := whatsapp_miner
+MINER_CONTAINER := $(PROJECT_NAME)_miner
+CLASSIFIER_CONTAINER := $(PROJECT_NAME)_classifier
+
+# Environment configurations
+ENVIRONMENTS := dev stg prod
+ENV_CONFIGS := dev:dev stg:stg prod:prd
+
+# Docker compose files
+DOCKER_COMPOSE_BASE := docker/docker-compose.yml
+DOCKER_COMPOSE_DEV := docker/docker-compose.dev.yml
+DOCKER_COMPOSE_PROD := docker/docker-compose.prod.yml
+
+# Common Doppler project
+DOPPLER_PROJECT := whatsapp_miner_backend
+
+# SSH key handling
+SSH_KEY_SETUP := KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && chmod 600 "$$KEY_FILE" && trap "rm -f $$KEY_FILE" EXIT
+
+# ────────────────────────────────────────────────────────────────────────────
+# Helper Functions
+# ────────────────────────────────────────────────────────────────────────────
+
+# Function to get Doppler config for environment
+define get_doppler_config
+$(word 2,$(subst :, ,$(filter $(1):%,$(ENV_CONFIGS))))
+endef
+
+# Function to get project prefix for environment
+define get_project_prefix
+$(PROJECT_NAME)_$(1)
+endef
+
+# Function to get container names for environment
+define get_container_names
+$(MINER_CONTAINER)_$(1) $(CLASSIFIER_CONTAINER)_$(1)
+endef
+
+# Function to download environment secrets
+define download_env_secrets
+@echo "📝 Updating .env.$(1) from Doppler..."
+@doppler secrets download --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --format docker --no-file --silent > .env.$(1)
+endef
+
+# Function to start environment locally (with optional detached mode)
+define start_env_local
+$(call download_env_secrets,$(1))
+@./scripts/docker-compose-with-env.sh .env.$(1) -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)) up $(if $(2),-d) --build
+$(if $(2),@echo "✓ $(1) environment started")
+endef
+
+# Function to check local container health
+define check_local_health
+@echo "🏥 Checking $(1) container health..."
+@docker ps --filter "name=$(PROJECT_NAME).*_$(1)" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|$(PROJECT_NAME).*_$(1)" || echo "No $(1) containers running"
+endef
+
+# Function to check remote container health
+define check_remote_health
+@echo "🏥 Checking health on $(1) EC2..."
+@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+	$(SSH_KEY_SETUP) && \
+	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+		"docker ps --filter \"name=$(PROJECT_NAME).*_$(1)\" --format \"table {{.Names}}\t{{.Status}}\""'
+endef
+
+# Function to SSH into environment
+define ssh_env
+@echo "🔐 Connecting to $(1) EC2..."
+@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+	$(SSH_KEY_SETUP) && \
+	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS'
+endef
+
+# Function to connect to database
+define psql_env
+@echo "🐘 Connecting to $(1) database..."
+@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+endef
+
+# Function to run migrations
+define run_migrations_env
+@echo "🔄 Running migrations for $(1) environment..."
+@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+endef
+
+# Function to clean local containers for environment
+define clean_local_env
+@echo "Stopping and removing $(1) containers..."
+@docker stop $(call get_container_names,$(1)) 2>/dev/null || true
+@docker rm $(call get_container_names,$(1)) 2>/dev/null || true
+endef
+
+# Function to clean remote containers for environment
+define clean_remote_env
+@echo "🧹 Cleaning up $(1) containers on remote EC2..."
+@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+	$(SSH_KEY_SETUP) && \
+	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+		"echo \"Stopping and removing $(1) containers...\" && \
+		docker stop $(call get_container_names,$(1)) 2>/dev/null || true && \
+		docker rm $(call get_container_names,$(1)) 2>/dev/null || true && \
+		echo \"Cleaning up unused volumes...\" && \
+		docker volume prune -f 2>/dev/null || true && \
+		echo \"✓ $(1) cleanup complete\""'
+endef
+
+# Function to show logs for environment
+define show_logs_env
+@echo "$(1) logs:"
+@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs --tail 10 2>/dev/null || echo "No $(1) containers running"
+endef
+
+# Function to tail logs for environment
+define tail_logs_env
+@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f
+endef
+
+# Function to tail logs for specific service in environment
+define tail_logs_service_env
+@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f $(2)
+endef
+
+# Function to exec into container
+define docker_exec_env
+@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) exec $(2) bash
+endef
+
+# Function to show container status for environment
+define show_container_status_env
+@echo "$(1) containers:"
+@docker ps --filter "name=$(PROJECT_NAME).*_$(1)" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No $(1) containers"
+endef
+
+# Function to show remote container status
+define show_remote_status_env
+@echo "$(1) containers on EC2:"
+@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+	$(SSH_KEY_SETUP) && \
+	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+		"docker ps --filter \"name=$(PROJECT_NAME).*_$(1)\" --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\""' 2>/dev/null || echo "No $(1) containers on remote"
+endef
+
+# Function to restart environment
+define restart_env
+@echo "🔄 Restarting $(1) services..."
+@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) restart
+endef
+
+# Function to stop environment
+define stop_env
+@echo "🛑 Stopping $(1) services..."
+@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) stop
+endef
+
+# Function to test deployment with act
+define test_deploy_env
+@echo "🧪 Testing $(1) deployment with act..."
+@act workflow_dispatch \
+	-W .github/workflows/deploy.yml \
+	--secret-file .env.$(1) \
+	--input environment=$(1) \
+	--container-daemon-socket /var/run/docker.sock \
+	--container-options "--group-add $(shell getent group docker | cut -d: -f3)"
+endef
+
+# Function to generate help section for environment commands
+define help_env_section
+@echo "  make $(1)-local              - Start $(1) environment locally"
+@echo "  make $(1)-local-detached     - Start $(1) environment locally (background)"
+@echo "  make health-local-$(1)       - Check $(1) container health"
+@echo "  make health-remote-$(1)      - Check $(1) EC2 container health"
+@echo "  make psql-$(1)               - Connect to $(1) database"
+@echo "  make run-migrations-$(1)     - Run migrations for $(1) environment"
+@echo "  make logs-$(1)               - Tail $(1) service logs"
+@echo "  make logs-miner-$(1)         - Tail $(1) miner logs"
+@echo "  make logs-classifier-$(1)    - Tail $(1) classifier logs"
+@echo "  make docker-exec-miner-$(1)-local     - Shell into $(1) miner container"
+@echo "  make docker-exec-classifier-$(1)-local - Shell into $(1) classifier container"
+@echo "  make restart-$(1)            - Restart $(1) services"
+@echo "  make stop-$(1)               - Stop $(1) services"
+@echo "  make clean-remote-$(1)       - Clean $(1) containers on remote EC2"
+endef
+
+# Function to echo start message
+define echo_start_env
+@echo "🚀 Starting $(1) environment locally$(if $(2), $(2))..."
+endef
+
+# ────────────────────────────────────────────────────────────────────────────
 # Local Development (daily use)
 # ────────────────────────────────────────────────────────────────────────────
 
 dev-local:
-	@echo "🚀 Starting dev environment locally..."
-	@echo "📝 Updating .env.dev from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev --format docker --no-file --silent > .env.dev
-	@./scripts/docker-compose-with-env.sh .env.dev -p whatsapp_miner_dev -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build
+	$(call echo_start_env,dev)
+	$(call start_env_local,dev)
 
 dev-local-detached:
-	@echo "🚀 Starting dev environment locally (background)..."
-	@echo "📝 Updating .env.dev from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev --format docker --no-file --silent > .env.dev
-	@./scripts/docker-compose-with-env.sh .env.dev -p whatsapp_miner_dev -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up -d --build
-	@echo "✓ Dev environment started"
+	$(call echo_start_env,dev,(background))
+	$(call start_env_local,dev,detached)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Local Production Testing
 # ────────────────────────────────────────────────────────────────────────────
 
 prod-local:
-	@echo "🚀 Starting prod environment locally..."
-	@echo "📝 Updating .env.prod from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config prd --format docker --no-file --silent > .env.prod
-	@./scripts/docker-compose-with-env.sh .env.prod -p whatsapp_miner_prod -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --build
+	$(call echo_start_env,prod)
+	$(call start_env_local,prod)
 
 prod-local-detached:
-	@echo "🚀 Starting prod environment locally (background)..."
-	@echo "📝 Updating .env.prod from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config prd --format docker --no-file --silent > .env.prod
-	@./scripts/docker-compose-with-env.sh .env.prod -p whatsapp_miner_prod -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
-	@echo "✓ Prod environment started"
+	$(call echo_start_env,prod,(background))
+	$(call start_env_local,prod,detached)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Local Staging Testing
 # ────────────────────────────────────────────────────────────────────────────
 
 stg-local:
-	@echo "🚀 Starting stg environment locally..."
-	@echo "📝 Updating .env.stg from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config stg --format docker --no-file --silent > .env.stg
-	@./scripts/docker-compose-with-env.sh .env.stg -p whatsapp_miner_stg -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up --build
+	$(call echo_start_env,stg)
+	$(call start_env_local,stg)
 
 stg-local-detached:
-	@echo "🚀 Starting stg environment locally (background)..."
-	@echo "📝 Updating .env.stg from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config stg --format docker --no-file --silent > .env.stg
-	@./scripts/docker-compose-with-env.sh .env.stg -p whatsapp_miner_stg -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d --build
-	@echo "✓ Stg environment started"
+	$(call echo_start_env,stg,(background))
+	$(call start_env_local,stg,detached)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Remote Deployment Testing with act
 # ────────────────────────────────────────────────────────────────────────────
 
 stg-deploy: sync-secrets
-	@echo "🧪 Testing stg deployment with act..."
-	@act workflow_dispatch \
-		-W .github/workflows/deploy.yml \
-		--secret-file .env.stg \
-		--input environment=stg \
-		--container-daemon-socket /var/run/docker.sock \
-		--container-options "--group-add $(shell getent group docker | cut -d: -f3)"
+	$(call test_deploy_env,stg)
 
 prod-deploy: sync-secrets
-	@echo "🧪 Testing prod deployment with act..."
-	@act workflow_dispatch \
-		-W .github/workflows/deploy.yml \
-		--secret-file .env.prod \
-		--input environment=prod \
-		--container-daemon-socket /var/run/docker.sock \
-		--container-options "--group-add $(shell getent group docker | cut -d: -f3)"
+	$(call test_deploy_env,prod)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Secret Management
@@ -83,14 +250,12 @@ prod-deploy: sync-secrets
 
 sync-secrets:
 	@echo "🔐 Syncing secrets from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev --format docker --no-file --silent > .env.dev
-	@doppler secrets download --project whatsapp_miner_backend --config stg --format docker --no-file --silent > .env.stg
-	@doppler secrets download --project whatsapp_miner_backend --config prd --format docker --no-file --silent > .env.prod
+	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env)))
 	@echo "✓ Secrets synced to .env.dev, .env.stg, and .env.prod"
 
 generate-env-example:
 	@echo "📝 Generating .env.example from Doppler..."
-	@doppler secrets download --project whatsapp_miner_backend --config dev --format env \
+	@doppler secrets download --project $(DOPPLER_PROJECT) --config dev --format env \
 		| sed 's/=.*/=/' > .env.example
 	@echo "✓ .env.example generated (values removed for template)"
 
@@ -100,93 +265,58 @@ generate-env-example:
 
 health-local:
 	@echo "🏥 Checking local container health (works for dev and prod)..."
-	@docker ps --filter "name=whatsapp_miner" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner" || echo "No containers running"
+	@docker ps --filter "name=$(PROJECT_NAME)" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|$(PROJECT_NAME)" || echo "No containers running"
 
 health-local-dev:
-	@echo "🏥 Checking dev container health..."
-	@docker ps --filter "name=whatsapp_miner.*_dev" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner.*_dev" || echo "No dev containers running"
+	$(call check_local_health,dev)
 
 health-local-stg:
-	@echo "🏥 Checking stg container health..."
-	@docker ps --filter "name=whatsapp_miner.*_stg" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner.*_stg" || echo "No stg containers running"
+	$(call check_local_health,stg)
 
 health-local-prod:
-	@echo "🏥 Checking prod container health..."
-	@docker ps --filter "name=whatsapp_miner.*_prod" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|whatsapp_miner.*_prod" || echo "No prod containers running"
+	$(call check_local_health,prod)
 
 health-remote-stg:
-	@echo "🏥 Checking health on stg EC2..."
-	@doppler run --project whatsapp_miner_backend --config stg --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"docker ps --filter \"name=whatsapp_miner.*_stg\" --format \"table {{.Names}}\t{{.Status}}\""'
+	$(call check_remote_health,stg)
 
 health-remote-prod:
-	@echo "🏥 Checking health on prod EC2..."
-	@doppler run --project whatsapp_miner_backend --config prd --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"docker ps --filter \"name=whatsapp_miner.*_prod\" --format \"table {{.Names}}\t{{.Status}}\""'
+	$(call check_remote_health,prod)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Remote Access
 # ────────────────────────────────────────────────────────────────────────────
 
 ssh-stage:
-	@echo "🔐 Connecting to stage EC2..."
-	@doppler run --project whatsapp_miner_backend --config stg --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS'
+	$(call ssh_env,stg)
 
 ssh-prod:
-	@echo "🔐 Connecting to prod EC2..."
-	@doppler run --project whatsapp_miner_backend --config prd --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS'
+	$(call ssh_env,prod)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Database Access
 # ────────────────────────────────────────────────────────────────────────────
 
 psql-dev:
-	@echo "🐘 Connecting to dev database..."
-	@doppler run --project whatsapp_miner_backend --config dev --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+	$(call psql_env,dev)
 
 psql-stage:
-	@echo "🐘 Connecting to stage database..."
-	@doppler run --project whatsapp_miner_backend --config stg --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+	$(call psql_env,stg)
 
 psql-prod:
-	@echo "🐘 Connecting to prod database..."
-	@doppler run --project whatsapp_miner_backend --config prd --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+	$(call psql_env,prod)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Database Migrations
 # ────────────────────────────────────────────────────────────────────────────
 
 run-migrations-dev:
-	@echo "🔄 Running migrations for dev environment..."
-	@doppler run --project whatsapp_miner_backend --config dev --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+	$(call run_migrations_env,dev)
 
 run-migrations-stage:
-	@echo "🔄 Running migrations for stage environment..."
-	@doppler run --project whatsapp_miner_backend --config stg --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+	$(call run_migrations_env,stg)
 
 run-migrations-prod:
-	@echo "🔄 Running migrations for prod environment..."
-	@doppler run --project whatsapp_miner_backend --config prd --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+	$(call run_migrations_env,prod)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Utilities
@@ -194,165 +324,101 @@ run-migrations-prod:
 
 clean-local:
 	@echo "🧹 Cleaning up local containers and volumes..."
-	@echo "Stopping and removing dev containers..."
-	@docker stop whatsapp_miner_miner_dev whatsapp_miner_classifier_dev 2>/dev/null || true
-	@docker rm whatsapp_miner_miner_dev whatsapp_miner_classifier_dev 2>/dev/null || true
-	@echo "Stopping and removing stg containers..."
-	@docker stop whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true
-	@docker rm whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true
-	@echo "Stopping and removing prod containers..."
-	@docker stop whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true
-	@docker rm whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true
+	$(foreach env,$(ENVIRONMENTS),$(call clean_local_env,$(env)))
 	@echo "Cleaning up unused volumes..."
 	@docker volume prune -f 2>/dev/null || true
 	@echo "✓ Local cleanup complete"
 
 clean-remote-stg:
-	@echo "🧹 Cleaning up stg containers on remote EC2..."
-	@doppler run --project whatsapp_miner_backend --config stg --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"echo \"Stopping and removing stg containers...\" && \
-			docker stop whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true && \
-			docker rm whatsapp_miner_miner_stg whatsapp_miner_classifier_stg 2>/dev/null || true && \
-			echo \"Cleaning up unused volumes...\" && \
-			docker volume prune -f 2>/dev/null || true && \
-			echo \"✓ Stg cleanup complete\""'
+	$(call clean_remote_env,stg)
 
 clean-remote-prod:
-	@echo "🧹 Cleaning up prod containers on remote EC2..."
-	@doppler run --project whatsapp_miner_backend --config prd --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"echo \"Stopping and removing prod containers...\" && \
-			docker stop whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true && \
-			docker rm whatsapp_miner_miner_prod whatsapp_miner_classifier_prod 2>/dev/null || true && \
-			echo \"Cleaning up unused volumes...\" && \
-			docker volume prune -f 2>/dev/null || true && \
-			echo \"✓ Prod cleanup complete\""'
+	$(call clean_remote_env,prod)
 
 clean: clean-local
 	@echo "🧹 Cleanup complete (local only - use clean-remote-stg or clean-remote-prod for remote)"
 
 logs:
 	@echo "📋 Showing logs for all projects..."
-	@echo "Dev logs:"
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml logs --tail 10 2>/dev/null || echo "No dev containers running"
+	$(foreach env,$(ENVIRONMENTS),$(call show_logs_env,$(env)))
 	@echo ""
-	@echo "Stg logs:"
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml logs --tail 10 2>/dev/null || echo "No stg containers running"
-	@echo ""
-	@echo "Prod logs:"
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml logs --tail 10 2>/dev/null || echo "No prod containers running"
 
 logs-dev:
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml logs -f
+	$(call tail_logs_env,dev)
 
 logs-stg:
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml logs -f
+	$(call tail_logs_env,stg)
 
 logs-prod:
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml logs -f
+	$(call tail_logs_env,prod)
 
 logs-miner-dev:
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml logs -f miner
+	$(call tail_logs_service_env,dev,miner)
 
 logs-miner-stg:
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml logs -f miner
+	$(call tail_logs_service_env,stg,miner)
 
 logs-miner-prod:
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml logs -f miner
+	$(call tail_logs_service_env,prod,miner)
 
 logs-classifier-dev:
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml logs -f classifier
+	$(call tail_logs_service_env,dev,classifier)
 
 logs-classifier-stg:
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml logs -f classifier
+	$(call tail_logs_service_env,stg,classifier)
 
 logs-classifier-prod:
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml logs -f classifier
+	$(call tail_logs_service_env,prod,classifier)
 
 docker-exec-miner-dev-local:
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml exec miner bash
+	$(call docker_exec_env,dev,miner)
 
 docker-exec-miner-stg-local:
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml exec miner bash
+	$(call docker_exec_env,stg,miner)
 
 docker-exec-miner-prod-local:
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml exec miner bash
+	$(call docker_exec_env,prod,miner)
 
 docker-exec-classifier-dev-local:
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml exec classifier bash
+	$(call docker_exec_env,dev,classifier)
 
 docker-exec-classifier-stg-local:
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml exec classifier bash
+	$(call docker_exec_env,stg,classifier)
 
 docker-exec-classifier-prod-local:
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml exec classifier bash
+	$(call docker_exec_env,prod,classifier)
 
 ps-local:
 	@echo "📊 Local container status:"
-	@echo "Dev containers:"
-	@docker ps --filter "name=whatsapp_miner.*_dev" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No dev containers"
+	$(foreach env,$(ENVIRONMENTS),$(call show_container_status_env,$(env)))
 	@echo ""
-	@echo "Stg containers:"
-	@docker ps --filter "name=whatsapp_miner.*_stg" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No stg containers"
-	@echo ""
-	@echo "Prod containers:"
-	@docker ps --filter "name=whatsapp_miner.*_prod" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No prod containers"
 
 ps-remote:
 	@echo "📊 Remote container status:"
-	@echo "Stg containers on EC2:"
-	@doppler run --project whatsapp_miner_backend --config stg --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"docker ps --filter \"name=whatsapp_miner.*_stg\" --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\""' 2>/dev/null || echo "No stg containers on remote"
+	$(call show_remote_status_env,stg)
 	@echo ""
-	@echo "Prod containers on EC2:"
-	@doppler run --project whatsapp_miner_backend --config prd --command '\
-		KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && \
-		echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && \
-		chmod 600 "$$KEY_FILE" && \
-		trap "rm -f $$KEY_FILE" EXIT && \
-		ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-			"docker ps --filter \"name=whatsapp_miner.*_prod\" --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\""' 2>/dev/null || echo "No prod containers on remote"
+	$(call show_remote_status_env,prod)
 
 ps: ps-local ps-remote
 	@echo "📊 Container status complete"
 
 restart-dev:
-	@echo "🔄 Restarting dev services..."
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml restart
+	$(call restart_env,dev)
 
 restart-stg:
-	@echo "🔄 Restarting stg services..."
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml restart
+	$(call restart_env,stg)
 
 restart-prod:
-	@echo "🔄 Restarting prod services..."
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml restart
+	$(call restart_env,prod)
 
 stop-dev:
-	@echo "🛑 Stopping dev services..."
-	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml stop
+	$(call stop_env,dev)
 
 stop-stg:
-	@echo "🛑 Stopping stg services..."
-	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml stop
+	$(call stop_env,stg)
 
 stop-prod:
-	@echo "🛑 Stopping prod services..."
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml stop
+	$(call stop_env,prod)
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -365,12 +431,13 @@ help:
 	@echo "════════════════════════════════════════════════════════════════════"
 	@echo ""
 	@echo "Local Development:"
-	@echo "  make dev-local              - Start dev environment locally"
-	@echo "  make dev-local-detached     - Start dev environment locally (background)"
-	@echo "  make stg-local              - Start stg environment locally"
-	@echo "  make stg-local-detached     - Start stg environment locally (background)"
-	@echo "  make prod-local             - Start prod environment locally"
-	@echo "  make prod-local-detached    - Start prod environment locally (background)"
+	$(call help_env_section,dev)
+	@echo ""
+	@echo "Staging Environment:"
+	$(call help_env_section,stg)
+	@echo ""
+	@echo "Production Environment:"
+	$(call help_env_section,prod)
 	@echo ""
 	@echo "Remote Deployment Testing:"
 	@echo "  make stg-deploy             - Test staging deployment with act"
@@ -378,25 +445,10 @@ help:
 	@echo ""
 	@echo "Health Checks:"
 	@echo "  make health-local           - Check all local container health"
-	@echo "  make health-local-dev       - Check dev container health"
-	@echo "  make health-local-stg       - Check stg container health"
-	@echo "  make health-local-prod      - Check prod container health"
-	@echo "  make health-remote-stg      - Check stg EC2 container health"
-	@echo "  make health-remote-prod     - Check prod EC2 container health"
 	@echo ""
 	@echo "Remote Access:"
 	@echo "  make ssh-stage              - SSH into stage EC2 instance"
 	@echo "  make ssh-prod               - SSH into prod EC2 instance"
-	@echo ""
-	@echo "Database Access:"
-	@echo "  make psql-dev               - Connect to dev database"
-	@echo "  make psql-stage             - Connect to stage database"
-	@echo "  make psql-prod              - Connect to prod database"
-	@echo ""
-	@echo "Database Migrations:"
-	@echo "  make run-migrations-dev     - Run migrations for dev environment"
-	@echo "  make run-migrations-stage   - Run migrations for stage environment"
-	@echo "  make run-migrations-prod    - Run migrations for prod environment"
 	@echo ""
 	@echo "Secrets:"
 	@echo "  make sync-secrets           - Update .env files from Doppler"
@@ -404,36 +456,13 @@ help:
 	@echo ""
 	@echo "Logs:"
 	@echo "  make logs                   - Show logs for all projects"
-	@echo "  make logs-dev               - Tail dev service logs"
-	@echo "  make logs-stg               - Tail stg service logs"
-	@echo "  make logs-prod              - Tail prod service logs"
-	@echo "  make logs-miner-dev         - Tail dev miner logs"
-	@echo "  make logs-miner-stg         - Tail stg miner logs"
-	@echo "  make logs-miner-prod        - Tail prod miner logs"
-	@echo "  make logs-classifier-dev    - Tail dev classifier logs"
-	@echo "  make logs-classifier-stg    - Tail stg classifier logs"
-	@echo "  make logs-classifier-prod   - Tail prod classifier logs"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make ps                     - Show container status for all projects (local + remote)"
 	@echo "  make ps-local               - Show local container status for all projects"
 	@echo "  make ps-remote              - Show remote container status on EC2"
-	@echo "  make shell-miner-dev        - Shell into dev miner container"
-	@echo "  make shell-miner-stg        - Shell into stg miner container"
-	@echo "  make shell-miner-prod       - Shell into prod miner container"
-	@echo "  make shell-classifier-dev   - Shell into dev classifier container"
-	@echo "  make shell-classifier-stg   - Shell into stg classifier container"
-	@echo "  make shell-classifier-prod  - Shell into prod classifier container"
-	@echo "  make restart-dev            - Restart dev services"
-	@echo "  make restart-stg            - Restart stg services"
-	@echo "  make restart-prod           - Restart prod services"
-	@echo "  make stop-dev               - Stop dev services"
-	@echo "  make stop-stg               - Stop stg services"
-	@echo "  make stop-prod              - Stop prod services"
 	@echo "  make clean                  - Clean local containers and volumes"
 	@echo "  make clean-local            - Clean local containers and volumes"
-	@echo "  make clean-remote-stg       - Clean stg containers on remote EC2"
-	@echo "  make clean-remote-prod      - Clean prod containers on remote EC2"
 	@echo "  make help                   - Show this help message"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
