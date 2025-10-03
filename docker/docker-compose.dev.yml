@@ -26,6 +26,7 @@ services:
       - ../migrations:/app/migrations:ro
     ports:
       - "8000:8000"  # Expose health endpoint for local testing
+      - "${SSH_PORT_MINER:-111}:2222"  # Expose SSH port for PyCharm remote development
     environment:
       - PYTHONUNBUFFERED=1  # Real-time logs
       - DEBUG=true
@@ -43,6 +44,7 @@ services:
       - ../migrations:/app/migrations:ro
     ports:
       - "8001:8001"  # Expose health endpoint for local testing
+      - "${SSH_PORT_CLASSIFIER:-112}:2222"  # Expose SSH port for PyCharm remote development
     environment:
       - PYTHONUNBUFFERED=1
       - DEBUG=true

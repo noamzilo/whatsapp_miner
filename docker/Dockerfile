@@ -35,6 +35,26 @@ FROM base as dev
 # Install ALL dependencies including dev tools
 RUN poetry install --no-interaction --no-ansi --with dev
 
+# Install SSH server and required tools for PyCharm remote development
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssh-server \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure SSH server for PyCharm remote development
+RUN mkdir /var/run/sshd && \
+    echo 'root:root' | chpasswd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
+    echo 'Port 2222' >> /etc/ssh/sshd_config && \
+    echo 'X11Forwarding yes' >> /etc/ssh/sshd_config && \
+    echo 'X11DisplayOffset 10' >> /etc/ssh/sshd_config
+
+# Create SSH directory and set permissions
+RUN mkdir -p /root/.ssh && \
+    chmod 700 /root/.ssh
+
 # Copy source code (will be overridden by volume mount in dev)
 COPY src ./src
 COPY migrations ./migrations

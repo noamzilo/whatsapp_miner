@@ -10,5 +10,12 @@ echo "🌍 Environment: ${ENV_NAME:-dev}"
 # Change to app directory
 cd /app
 
+# Start SSH server in background for PyCharm remote development
+if [ "${ENV_NAME:-dev}" = "dev" ]; then
+    echo "🔐 Starting SSH server for PyCharm remote development..."
+    /usr/sbin/sshd -D &
+    echo "✓ SSH server started on port 2222"
+fi
+
 # Run the classifier application
 exec python -u /app/src/message_classification/classify_new_messages.py 

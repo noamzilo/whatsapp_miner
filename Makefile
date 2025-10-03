@@ -32,32 +32,60 @@ SSH_KEY_SETUP := KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && echo "$$AWS_EC2_PE
 # Helper Functions
 # ────────────────────────────────────────────────────────────────────────────
 
-# Function to get Doppler config for environment
-define get_doppler_config
+# Function to extract Doppler config name for environment
+define extract_doppler_config
 $(word 2,$(subst :, ,$(filter $(1):%,$(ENV_CONFIGS))))
 endef
 
-# Function to get project prefix for environment
-define get_project_prefix
+# Function to build project prefix for environment
+define build_project_prefix
 $(PROJECT_NAME)_$(1)
 endef
 
-# Function to get container names for environment
-define get_container_names
+# Function to build container names for environment
+define build_container_names
 $(MINER_CONTAINER)_$(1) $(CLASSIFIER_CONTAINER)_$(1)
 endef
 
 # Function to download environment secrets
 define download_env_secrets
 @echo "📝 Updating .env.$(1) from Doppler..."
-@doppler secrets download --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --format docker --no-file --silent > .env.$(1)
+@doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format docker --no-file --silent > .env.$(1)
 endef
 
-# Function to start environment locally (with optional detached mode)
+# Function to start environment locally (with optional detached mode and port overrides)
 define start_env_local
 $(call download_env_secrets,$(1))
-@./scripts/docker-compose-with-env.sh .env.$(1) -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)) up $(if $(2),-d) --build
+@./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)) up $(if $(2),-d) --build
 $(if $(2),@echo "✓ $(1) environment started")
+endef
+
+# Function to start dev environment with SSH port overrides
+define start_dev_local_with_ports
+$(call download_env_secrets,dev)
+@SSH_PORT_MINER=$(3) SSH_PORT_CLASSIFIER=$(4) ./scripts/docker-compose-with-env.sh .env.dev -p $(call build_project_prefix,dev) -f $(DOCKER_COMPOSE_BASE) -f $(DOCKER_COMPOSE_DEV) up $(if $(2),-d) --build
+$(if $(2),@echo "✓ dev environment started with SSH ports: miner=$(3), classifier=$(4)")
+endef
+
+
+# Port schema: {project}{env}{container}
+# Project: 1 (whatsapp_miner)
+# Environment: 1 (dev), 2 (stg), 3 (prod)  
+# Container: 1 (miner), 2 (classifier)
+
+# Function to map environment name to number for port building
+define map_env_to_number
+$(if $(filter $(1),dev),1,$(if $(filter $(1),stg),2,3))
+endef
+
+# Function to build SSH port for container in environment
+define build_ssh_port
+1$(call map_env_to_number,$(1))$(2)
+endef
+
+# Function to build default SSH ports for environment (miner and classifier)
+define build_default_ssh_ports
+$(call build_ssh_port,$(1),1) $(call build_ssh_port,$(1),2)
 endef
 
 # Function to check local container health
@@ -69,7 +97,7 @@ endef
 # Function to check remote container health
 define check_remote_health
 @echo "🏥 Checking health on $(1) EC2..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"docker ps --filter \"name=$(PROJECT_NAME).*_$(1)\" --format \"table {{.Names}}\t{{.Status}}\""'
@@ -78,7 +106,7 @@ endef
 # Function to SSH into environment
 define ssh_env
 @echo "🔐 Connecting to $(1) EC2..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS'
 endef
@@ -86,31 +114,31 @@ endef
 # Function to connect to database
 define psql_env
 @echo "🐘 Connecting to $(1) database..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
 endef
 
 # Function to run migrations
 define run_migrations_env
 @echo "🔄 Running migrations for $(1) environment..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
 endef
 
 # Function to clean local containers for environment
 define clean_local_env
 @echo "Stopping and removing $(1) containers..."
-@docker stop $(call get_container_names,$(1)) 2>/dev/null || true
-@docker rm $(call get_container_names,$(1)) 2>/dev/null || true
+@docker stop $(call build_container_names,$(1)) 2>/dev/null || true
+@docker rm $(call build_container_names,$(1)) 2>/dev/null || true
 endef
 
 # Function to clean remote containers for environment
 define clean_remote_env
 @echo "🧹 Cleaning up $(1) containers on remote EC2..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"echo \"Stopping and removing $(1) containers...\" && \
-		docker stop $(call get_container_names,$(1)) 2>/dev/null || true && \
-		docker rm $(call get_container_names,$(1)) 2>/dev/null || true && \
+		docker stop $(call build_container_names,$(1)) 2>/dev/null || true && \
+		docker rm $(call build_container_names,$(1)) 2>/dev/null || true && \
 		echo \"Cleaning up unused volumes...\" && \
 		docker volume prune -f 2>/dev/null || true && \
 		echo \"✓ $(1) cleanup complete\""'
@@ -119,22 +147,22 @@ endef
 # Function to show logs for environment
 define show_logs_env
 @echo "$(1) logs:"
-@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs --tail 10 2>/dev/null || echo "No $(1) containers running"
+@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs --tail 10 2>/dev/null || echo "No $(1) containers running"
 endef
 
 # Function to tail logs for environment
 define tail_logs_env
-@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f
+@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f
 endef
 
 # Function to tail logs for specific service in environment
 define tail_logs_service_env
-@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f $(2)
+@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f $(2)
 endef
 
 # Function to exec into container
 define docker_exec_env
-@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) exec $(2) bash
+@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) exec $(2) bash
 endef
 
 # Function to show container status for environment
@@ -146,7 +174,7 @@ endef
 # Function to show remote container status
 define show_remote_status_env
 @echo "$(1) containers on EC2:"
-@doppler run --project $(DOPPLER_PROJECT) --config $(call get_doppler_config,$(1)) --command '\
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"docker ps --filter \"name=$(PROJECT_NAME).*_$(1)\" --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\""' 2>/dev/null || echo "No $(1) containers on remote"
@@ -155,13 +183,13 @@ endef
 # Function to restart environment
 define restart_env
 @echo "🔄 Restarting $(1) services..."
-@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) restart
+@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) restart
 endef
 
 # Function to stop environment
 define stop_env
 @echo "🛑 Stopping $(1) services..."
-@docker compose -p $(call get_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) stop
+@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) stop
 endef
 
 # Function to test deployment with act
@@ -179,6 +207,8 @@ endef
 define help_env_section
 @echo "  make $(1)-local              - Start $(1) environment locally"
 @echo "  make $(1)-local-detached     - Start $(1) environment locally (background)"
+$(if $(filter $(1),dev),@echo "  make $(1)-local-ports          - Start $(1) with custom SSH ports for PyCharm")
+$(if $(filter $(1),dev),@echo "  make $(1)-local-ports-detached - Start $(1) with custom SSH ports (background)")
 @echo "  make health-local-$(1)       - Check $(1) container health"
 @echo "  make health-remote-$(1)      - Check $(1) EC2 container health"
 @echo "  make psql-$(1)               - Connect to $(1) database"
@@ -210,6 +240,19 @@ dev-local-detached:
 	$(call echo_start_env,dev,(background))
 	$(call start_env_local,dev,detached)
 
+# Dev with custom SSH ports for PyCharm remote development
+dev-local-ports:
+	@echo "🚀 Starting dev environment with custom SSH ports..."
+	@echo "Usage: make dev-local-ports MINER_PORT=$(call build_ssh_port,dev,1) CLASSIFIER_PORT=$(call build_ssh_port,dev,2)"
+	@echo "Default ports: miner=$(call build_ssh_port,dev,1), classifier=$(call build_ssh_port,dev,2)"
+	$(call start_dev_local_with_ports,dev,,$(MINER_PORT),$(CLASSIFIER_PORT))
+
+dev-local-ports-detached:
+	@echo "🚀 Starting dev environment with custom SSH ports (background)..."
+	@echo "Usage: make dev-local-ports-detached MINER_PORT=$(call build_ssh_port,dev,1) CLASSIFIER_PORT=$(call build_ssh_port,dev,2)"
+	@echo "Default ports: miner=$(call build_ssh_port,dev,1), classifier=$(call build_ssh_port,dev,2)"
+	$(call start_dev_local_with_ports,dev,detached,$(MINER_PORT),$(CLASSIFIER_PORT))
+
 # ────────────────────────────────────────────────────────────────────────────
 # Local Production Testing
 # ────────────────────────────────────────────────────────────────────────────
@@ -222,6 +265,7 @@ prod-local-detached:
 	$(call echo_start_env,prod,(background))
 	$(call start_env_local,prod,detached)
 
+
 # ────────────────────────────────────────────────────────────────────────────
 # Local Staging Testing
 # ────────────────────────────────────────────────────────────────────────────
@@ -233,6 +277,7 @@ stg-local:
 stg-local-detached:
 	$(call echo_start_env,stg,(background))
 	$(call start_env_local,stg,detached)
+
 
 # ────────────────────────────────────────────────────────────────────────────
 # Remote Deployment Testing with act
@@ -464,6 +509,15 @@ help:
 	@echo "  make clean                  - Clean local containers and volumes"
 	@echo "  make clean-local            - Clean local containers and volumes"
 	@echo "  make help                   - Show this help message"
+	@echo ""
+	@echo "PyCharm Remote Development (dev only):"
+	@echo "  make dev-local-ports        - Start dev with custom SSH ports"
+	@echo "  make dev-local-ports-detached - Start dev with custom SSH ports (background)"
+	@echo "  Default SSH ports (format: project-env-container):"
+	@echo "    dev:  miner=$(call build_ssh_port,dev,1), classifier=$(call build_ssh_port,dev,2)"
+	@echo "  PyCharm connection: root@localhost:PORT (password: root)"
+	@echo "  Example: make dev-local-ports MINER_PORT=$(call build_ssh_port,dev,1) CLASSIFIER_PORT=$(call build_ssh_port,dev,2)"
+	@echo "  Note: SSH access only available in development environment"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
 
