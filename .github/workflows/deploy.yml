@@ -172,11 +172,14 @@ jobs:
           # Show container status
           docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
           
-          # If migration failed, show migration logs
-          if ! docker ps | grep -q "whatsapp_miner.*migrate.*${{ env.ENV_NAME }}"; then
+          # Check if migration completed successfully
+          MIGRATION_EXIT_CODE=$(docker compose -p whatsapp_miner_${{ env.ENV_NAME }} ps migrate --format "{{.ExitCode}}" 2>/dev/null || echo "1")
+          if [ "$MIGRATION_EXIT_CODE" != "0" ]; then
             echo ""
-            echo "❌ Migration container not running - checking migration logs:"
+            echo "❌ Migration failed with exit code $MIGRATION_EXIT_CODE - checking migration logs:"
             docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs migrate 2>&1 || echo "No migration logs available"
+          else
+            echo "✅ Migration completed successfully"
           fi
           
           ENDSSH
