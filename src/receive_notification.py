@@ -203,7 +203,7 @@ def outgoing_message_received(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	logger.info(f"New outgoing message at {time} with data: {data}", end="\n\n")
+	logger.info(f"New outgoing message at {time} with data: {data}")
 
 def outgoing_api_message_received(body: dict) -> None:
 	timestamp = body["timestamp"]
@@ -211,7 +211,7 @@ def outgoing_api_message_received(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	logger.info(f"New outgoing API message at {time} with data: {data}", end="\n\n")
+	logger.info(f"New outgoing API message at {time} with data: {data}")
 
 
 def outgoing_message_status(body: dict) -> None:
@@ -223,7 +223,7 @@ def outgoing_message_status(body: dict) -> None:
 	response = (
 		f"Status of sent message has been updated at {time} with data: {data}"
 	)
-	logger.info(response, end="\n\n")
+	logger.info(response)
 
 
 def state_instance_changed(body: dict) -> None:
@@ -232,7 +232,7 @@ def state_instance_changed(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	logger.info(f"Current instance state at {time} with data: {data}", end="\n\n")
+	logger.info(f"Current instance state at {time} with data: {data}")
 
 
 def device_info(body: dict) -> None:
@@ -244,7 +244,7 @@ def device_info(body: dict) -> None:
 	response = (
 		f"Current device information at {time} with data: {data}"
 	)
-	logger.info(response, end="\n\n")
+	logger.info(response)
 
 def incoming_call(body: dict) -> None:
 	timestamp = body["timestamp"]
@@ -252,7 +252,7 @@ def incoming_call(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	logger.info(f"New incoming call at {time} with data: {data}", end="\n\n")
+	logger.info(f"New incoming call at {time} with data: {data}")
 
 
 def status_instance_changed(body: dict) -> None:
@@ -261,7 +261,7 @@ def status_instance_changed(body: dict) -> None:
 
 	data = dumps(body, ensure_ascii=False, indent=4)
 
-	logger.info(f"Current instance status at {time} with data: {data}", end="\n\n")
+	logger.info(f"Current instance status at {time} with data: {data}")
 
 
 if __name__ == '__main__':
