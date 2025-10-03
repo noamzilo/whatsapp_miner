@@ -80,12 +80,15 @@ def classify_messages_loop(messages_df: pd.DataFrame) -> pd.DataFrame:
 
 @log_in_out(logger=logger)
 def main():
+
     messages_df = download_messages_dataframe(limit=50)
     
     if messages_df.empty:
         return
     
     classified_df = classify_messages_loop(messages_df)
+
+    logger.info(classified_df)
 
 
 if __name__ == "__main__":

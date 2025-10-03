@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from contextlib import contextmanager
 from typing import Generator
 import os
-
+from src.env_var_injection import database_url
 # Shared SQLAlchemy DbInterface
 DbInterface = declarative_base()
 

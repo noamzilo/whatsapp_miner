@@ -278,23 +278,23 @@ logs-classifier-stg:
 logs-classifier-prod:
 	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml logs -f classifier
 
-shell-miner-dev:
+docker-exec-miner-dev-local:
 	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml exec miner bash
 
-shell-miner-prod:
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml exec miner bash
-
-shell-miner-stg:
+docker-exec-miner-stg-local:
 	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml exec miner bash
 
-shell-classifier-dev:
+docker-exec-miner-prod-local:
+	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml exec miner bash
+
+docker-exec-classifier-dev-local:
 	@docker compose -p whatsapp_miner_dev -f docker/docker-compose.yml exec classifier bash
 
-shell-classifier-prod:
-	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml exec classifier bash
-
-shell-classifier-stg:
+docker-exec-classifier-stg-local:
 	@docker compose -p whatsapp_miner_stg -f docker/docker-compose.yml exec classifier bash
+
+docker-exec-classifier-prod-local:
+	@docker compose -p whatsapp_miner_prod -f docker/docker-compose.yml exec classifier bash
 
 ps-local:
 	@echo "📊 Local container status:"
