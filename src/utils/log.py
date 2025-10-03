@@ -284,3 +284,4 @@ def log_in_out(logger=get_logger(), is_print_input=True, is_print_output=True, i
 		return wrapper
 
 	return decor
+
