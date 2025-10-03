@@ -172,6 +172,13 @@ jobs:
           # Show container status
           docker ps --filter "name=whatsapp_miner_${{ env.ENV_NAME }}"
           
+          # If migration failed, show migration logs
+          if ! docker ps | grep -q "whatsapp_miner.*migrate.*${{ env.ENV_NAME }}"; then
+            echo ""
+            echo "❌ Migration container not running - checking migration logs:"
+            docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs migrate 2>&1 || echo "No migration logs available"
+          fi
+          
           ENDSSH
       
       - name: Verify deployment
@@ -192,6 +199,9 @@ jobs:
             echo ""
             echo "Container status:"
             docker ps -a --filter "name=whatsapp_miner"
+            echo ""
+            echo "Migration logs (most likely cause of failure):"
+            docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs migrate 2>&1 || echo "Failed to get migration logs"
             echo ""
             echo "Recent logs from miner:"
             docker compose -p whatsapp_miner_${{ env.ENV_NAME }} logs --tail 50 miner 2>&1 || echo "Failed to get miner logs"
