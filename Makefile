@@ -64,7 +64,7 @@ endef
 define start_dev_local_with_ports
 $(call download_env_secrets,dev)
 @SSH_PORT_MINER=$(3) SSH_PORT_CLASSIFIER=$(4) ./scripts/docker-compose-with-env.sh .env.dev -p $(call build_project_prefix,dev) -f $(DOCKER_COMPOSE_BASE) -f $(DOCKER_COMPOSE_DEV) up $(if $(2),-d) --build
-$(if $(2),@echo "✓ dev environment started with SSH ports: miner=$(3), classifier=$(4)")
+$(if $(2),@echo "✓ dev environment started with SSH ports")
 endef
 
 
@@ -243,14 +243,18 @@ dev-local-detached:
 # Dev with custom SSH ports for PyCharm remote development
 dev-local-ports:
 	@echo "🚀 Starting dev environment with custom SSH ports..."
-	@echo "Usage: make dev-local-ports MINER_PORT=$(call build_ssh_port,dev,1) CLASSIFIER_PORT=$(call build_ssh_port,dev,2)"
-	@echo "Default ports: miner=$(call build_ssh_port,dev,1), classifier=$(call build_ssh_port,dev,2)"
+	@echo "Usage: make dev-local-ports MINER_PORT=111 CLASSIFIER_PORT=112"
+	@echo "Default ports: miner=111, classifier=112"
+	@$(eval MINER_PORT := $(or $(MINER_PORT),111))
+	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),112))
 	$(call start_dev_local_with_ports,dev,,$(MINER_PORT),$(CLASSIFIER_PORT))
 
 dev-local-ports-detached:
 	@echo "🚀 Starting dev environment with custom SSH ports (background)..."
-	@echo "Usage: make dev-local-ports-detached MINER_PORT=$(call build_ssh_port,dev,1) CLASSIFIER_PORT=$(call build_ssh_port,dev,2)"
-	@echo "Default ports: miner=$(call build_ssh_port,dev,1), classifier=$(call build_ssh_port,dev,2)"
+	@echo "Usage: make dev-local-ports-detached MINER_PORT=9111 CLASSIFIER_PORT=9112"
+	@echo "Default ports: miner=9111, classifier=9112"
+	@$(eval MINER_PORT := $(or $(MINER_PORT),111))
+	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),112))
 	$(call start_dev_local_with_ports,dev,detached,$(MINER_PORT),$(CLASSIFIER_PORT))
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -513,10 +517,10 @@ help:
 	@echo "PyCharm Remote Development (dev only):"
 	@echo "  make dev-local-ports        - Start dev with custom SSH ports"
 	@echo "  make dev-local-ports-detached - Start dev with custom SSH ports (background)"
-	@echo "  Default SSH ports (format: project-env-container):"
-	@echo "    dev:  miner=$(call build_ssh_port,dev,1), classifier=$(call build_ssh_port,dev,2)"
+	@echo "  Default SSH ports:"
+	@echo "    dev:  miner=111, classifier=112"
 	@echo "  PyCharm connection: root@localhost:PORT (password: root)"
-	@echo "  Example: make dev-local-ports MINER_PORT=$(call build_ssh_port,dev,1) CLASSIFIER_PORT=$(call build_ssh_port,dev,2)"
+	@echo "  Example: make dev-local-ports MINER_PORT=111 CLASSIFIER_PORT=112"
 	@echo "  Note: SSH access only available in development environment"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"

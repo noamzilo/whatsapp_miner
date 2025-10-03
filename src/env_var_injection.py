@@ -6,7 +6,7 @@ def sanitize_env_var(name, default=None):
 	value = os.getenv(name)
 	if value is None and default is None:
 		raise RuntimeError(f"Missing required environment variable: {name}")
-	else:
+	elif value is None:
 		value = default
 	value = value.replace('"', "")
 	return value
