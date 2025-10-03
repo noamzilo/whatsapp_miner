@@ -2,6 +2,7 @@
 - when running code, first use `poetry shell`
 - when running anything that needs secrets, use `doppler run --project whatsapp_miner_backend --config dev`. Also add that to shell scripts
 - All imports should be from the `src` directory and top of file. No relative imports and no inline imports.
+- Be careful of n+1 queries when writing sql queries or using sqlalchemy.
 
 * versions of things:
 - Docker Compose version v2.38.2-desktop.1

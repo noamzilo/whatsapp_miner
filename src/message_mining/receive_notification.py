@@ -1,8 +1,14 @@
 print("receive_notification.py first line")
-from paths import logs_root
-from json import dumps
-from env_var_injection import instance_id, api_token
+from src.paths import logs_root
+import threading
+import os
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.engine import Engine
+from sqlalchemy import event
+from datetime import datetime, timedelta
 from whatsapp_api_client_python import API
+from json import dumps
+from src.env_var_injection import instance_id, api_token
 from src.utils.log import get_logger, setup_logger
 from src.utils.health_server import start_health_server
 from src.db.db_interface import get_session_local
@@ -11,13 +17,7 @@ from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.db import get_message_by_message_id, get_user_by_whatsapp_id, get_group_by_whatsapp_id
 # from src.message_queue.redis_streams_queue import RedisMessageQueue  # Temporarily disabled
-from sqlalchemy.exc import IntegrityError
-from datetime import datetime, timedelta
-import threading
-import os
-from sqlalchemy.engine import Engine
-from sqlalchemy import event
-from env_var_injection import database_url
+from src.env_var_injection import database_url
 
 
 setup_logger(logs_root)
