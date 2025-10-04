@@ -1,3 +1,9 @@
+import sys
+
+print(sys.executable)
+
+
+
 import pandas as pd
 from typing import List, Dict, Any
 from sqlalchemy.orm import sessionmaker
@@ -92,4 +98,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()

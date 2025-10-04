@@ -51,6 +51,10 @@ RUN mkdir -p /var/run/sshd && \
     echo 'X11Forwarding yes' >> /etc/ssh/sshd_config && \
     echo 'X11DisplayOffset 10' >> /etc/ssh/sshd_config
 
+# make ssh connection faster
+RUN echo 'UseDNS no' >> /etc/ssh/sshd_config && \
+    echo 'GSSAPIAuthentication no' >> /etc/ssh/sshd_config
+
 # Create SSH directory and set permissions
 RUN mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
