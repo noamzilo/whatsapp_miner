@@ -86,7 +86,7 @@ def classify_messages_loop(messages_df: pd.DataFrame) -> pd.DataFrame:
 
 @log_in_out(logger=logger)
 def main():
-
+    pd.set_option('display.max_columns', None)
     messages_df = download_messages_dataframe(limit=50)
     
     if messages_df.empty:

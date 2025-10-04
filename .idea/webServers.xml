@@ -3,9 +3,9 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="3000b67d-a476-42f0-8b43-ae368f198b32" name="classifier">
-        <fileTransfer rootFolder="/app" accessType="SFTP" host="localhost" port="912" sshConfigId="1a869747-250f-4d5f-af5e-f716089ff52a" sshConfig="root@localhost:912 password">
+        <fileTransfer rootFolder="/app" accessType="SFTP" sshConfigId="1ea9721e-944f-4a6a-9ca2-6a43fbc1c570" sshConfig="classifier">
           <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
         </fileTransfer>
       </webServer>
