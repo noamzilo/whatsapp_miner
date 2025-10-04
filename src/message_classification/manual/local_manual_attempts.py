@@ -1,6 +1,6 @@
 import sys
 
-print(sys.executable)
+print(f"path[0]={sys.path[0]}")
 
 
 
