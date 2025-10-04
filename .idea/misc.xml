@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.11.13 WSL (Ubuntu): (/home/noams/src/whatsapp_miner/venv/bin/python)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.11.13 (sftp://root@localhost:912/root/.virtualenvs/whatsapp_miner/bin/python)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote Python 3.11.13 (sftp://root@localhost:912/usr/local/bin/python3)" project-jdk-type="Python SDK" />
 </project>

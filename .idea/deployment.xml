@@ -1,23 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" serverName="classifier" deleteMissingItems="true" createEmptyFolders="true" confirmBeforeDeletion="false">
+  <component name="PublishConfigData" autoUpload="Always" deleteMissingItems="true" createEmptyFolders="true" confirmBeforeDeletion="false">
     <option name="confirmBeforeDeletion" value="false" />
     <serverData>
-      <paths name="classifier">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/app" local="$PROJECT_DIR$" web="/" />
-          </mappings>
-          <excludedPaths>
-            <excludedPath local="true" path="$PROJECT_DIR$/.venv" />
-            <excludedPath local="true" path="$PROJECT_DIR$/.vscode" />
-          </excludedPaths>
-        </serverdata>
-      </paths>
       <paths name="root@localhost:912 password">
         <serverdata>
           <mappings>
-            <mapping deploy="/app/src" local="$PROJECT_DIR$/src" />
+            <mapping deploy="/app" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>
