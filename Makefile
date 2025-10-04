@@ -243,18 +243,18 @@ dev-local-detached:
 # Dev with custom SSH ports for PyCharm remote development
 dev-local-ports:
 	@echo "🚀 Starting dev environment with custom SSH ports..."
-	@echo "Usage: make dev-local-ports MINER_PORT=111 CLASSIFIER_PORT=112"
-	@echo "Default ports: miner=111, classifier=112"
-	@$(eval MINER_PORT := $(or $(MINER_PORT),111))
-	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),112))
+	@echo "Usage: make dev-local-ports MINER_PORT=911 CLASSIFIER_PORT=912"
+	@echo "Default ports: miner=911, classifier=912"
+	@$(eval MINER_PORT := $(or $(MINER_PORT),911))
+	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),912))
 	$(call start_dev_local_with_ports,dev,,$(MINER_PORT),$(CLASSIFIER_PORT))
 
 dev-local-ports-detached:
 	@echo "🚀 Starting dev environment with custom SSH ports (background)..."
 	@echo "Usage: make dev-local-ports-detached MINER_PORT=9111 CLASSIFIER_PORT=9112"
 	@echo "Default ports: miner=9111, classifier=9112"
-	@$(eval MINER_PORT := $(or $(MINER_PORT),111))
-	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),112))
+	@$(eval MINER_PORT := $(or $(MINER_PORT),911))
+	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),912))
 	$(call start_dev_local_with_ports,dev,detached,$(MINER_PORT),$(CLASSIFIER_PORT))
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -518,9 +518,9 @@ help:
 	@echo "  make dev-local-ports        - Start dev with custom SSH ports"
 	@echo "  make dev-local-ports-detached - Start dev with custom SSH ports (background)"
 	@echo "  Default SSH ports:"
-	@echo "    dev:  miner=111, classifier=112"
+	@echo "    dev:  miner=911, classifier=912"
 	@echo "  PyCharm connection: root@localhost:PORT (password: root)"
-	@echo "  Example: make dev-local-ports MINER_PORT=111 CLASSIFIER_PORT=112"
+	@echo "  Example: make dev-local-ports MINER_PORT=911 CLASSIFIER_PORT=912"
 	@echo "  Note: SSH access only available in development environment"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
