@@ -2,10 +2,10 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="f22466c1-0164-4e61-b072-fe32fc4dfcb8" name="root@localhost:912 password">
+      <webServer id="3000b67d-a476-42f0-8b43-ae368f198b32" name="classifier">
         <fileTransfer rootFolder="/app" accessType="SFTP" host="localhost" port="912" sshConfigId="1a869747-250f-4d5f-af5e-f716089ff52a" sshConfig="root@localhost:912 password">
           <advancedOptions>
-            <advancedOptions isUseRsync="true" />
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
         </fileTransfer>
       </webServer>
