@@ -53,6 +53,23 @@ define download_env_secrets
 @doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format docker --no-file --silent > .env.$(1)
 endef
 
+# Function to run docker compose with environment variables for local environment
+# Parameters: $(1)=env, $(2)=docker compose command and args
+define docker_compose_local
+@$(eval _DOCKER_COMPOSE_OVERRIDE := $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)))
+@./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) $(2)
+endef
+
+# Function to run docker compose with environment variables for remote environment
+# Parameters: $(1)=env, $(2)=docker compose command and args
+define docker_compose_remote
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
+	$(SSH_KEY_SETUP) && \
+	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
+		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
+		./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker/docker-compose.yml -f docker/docker-compose.$(if $(filter $(1),dev),dev,prod).yml $(2)"'
+endef
+
 # Function to start environment locally (with optional detached mode and port overrides)
 # Parameters: $(1)=env, $(2)=detached_flag, $(3)=miner_port, $(4)=classifier_port, $(5)=run_migrations
 define start_env_local
@@ -94,16 +111,13 @@ endef
 # Function to check local container health
 define check_local_health
 @echo "🏥 Checking $(1) container health..."
-@docker ps --filter "name=$(PROJECT_NAME).*_$(1)" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|$(PROJECT_NAME).*_$(1)" || echo "No $(1) containers running"
+@$(call docker_compose_local,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\"") 2>/dev/null || echo "No $(1) containers running"
 endef
 
 # Function to check remote container health
 define check_remote_health
 @echo "🏥 Checking health on $(1) EC2..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
-	$(SSH_KEY_SETUP) && \
-	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-		"docker ps --filter \"name=$(PROJECT_NAME).*_$(1)\" --format \"table {{.Names}}\t{{.Status}}\""'
+@$(call docker_compose_remote,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\"")
 endef
 
 # Function to SSH into environment
@@ -128,20 +142,20 @@ endef
 
 # Function to clean local containers for environment
 define clean_local_env
-@echo "Stopping and removing $(1) containers..."
-@docker stop $(call build_container_names,$(1)) 2>/dev/null || true
-@docker rm $(call build_container_names,$(1)) 2>/dev/null || true
+@echo "Stopping and removing $(1) containers and volumes..."
+@$(call docker_compose_local,$(1),"down -v --remove-orphans") 2>/dev/null || true
+@echo "✓ $(1) environment cleaned up"
 endef
 
 # Function to clean remote containers for environment
 define clean_remote_env
-@echo "🧹 Cleaning up $(1) containers on remote EC2..."
+@echo "🧹 Cleaning up $(1) containers and volumes on remote EC2..."
 @doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-		"echo \"Stopping and removing $(1) containers...\" && \
-		docker stop $(call build_container_names,$(1)) 2>/dev/null || true && \
-		docker rm $(call build_container_names,$(1)) 2>/dev/null || true && \
+		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
+		echo \"Stopping and removing $(1) containers and volumes...\" && \
+		./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker/docker-compose.yml -f docker/docker-compose.$(if $(filter $(1),dev),dev,prod).yml down -v --remove-orphans 2>/dev/null || true && \
 		echo \"Cleaning up unused volumes...\" && \
 		docker volume prune -f 2>/dev/null || true && \
 		echo \"✓ $(1) cleanup complete\""'
@@ -150,49 +164,46 @@ endef
 # Function to show logs for environment
 define show_logs_env
 @echo "$(1) logs:"
-@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs --tail 10 2>/dev/null || echo "No $(1) containers running"
+@$(call docker_compose_local,$(1),"logs --tail 10") 2>/dev/null || echo "No $(1) containers running"
 endef
 
 # Function to tail logs for environment
 define tail_logs_env
-@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f
+@$(call docker_compose_local,$(1),"logs -f")
 endef
 
 # Function to tail logs for specific service in environment
 define tail_logs_service_env
-@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) logs -f $(2)
+@$(call docker_compose_local,$(1),"logs -f $(2)")
 endef
 
 # Function to exec into container
 define docker_exec_env
-@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) exec $(2) bash
+@$(call docker_compose_local,$(1),"exec $(2) bash")
 endef
 
 # Function to show container status for environment
 define show_container_status_env
 @echo "$(1) containers:"
-@docker ps --filter "name=$(PROJECT_NAME).*_$(1)" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || echo "No $(1) containers"
+@$(call docker_compose_local,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\"") 2>/dev/null || echo "No $(1) containers"
 endef
 
 # Function to show remote container status
 define show_remote_status_env
 @echo "$(1) containers on EC2:"
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
-	$(SSH_KEY_SETUP) && \
-	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
-		"docker ps --filter \"name=$(PROJECT_NAME).*_$(1)\" --format \"table {{.Names}}\t{{.Status}}\t{{.Ports}}\""' 2>/dev/null || echo "No $(1) containers on remote"
+@$(call docker_compose_remote,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\"") 2>/dev/null || echo "No $(1) containers on remote"
 endef
 
 # Function to restart environment
 define restart_env
 @echo "🔄 Restarting $(1) services..."
-@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) restart
+@$(call docker_compose_local,$(1),"restart")
 endef
 
 # Function to stop environment
 define stop_env
 @echo "🛑 Stopping $(1) services..."
-@docker compose -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) stop
+@$(call docker_compose_local,$(1),"stop")
 endef
 
 # Function to test deployment with act
@@ -300,7 +311,14 @@ generate-env-example:
 
 health-local:
 	@echo "🏥 Checking local container health (works for dev and prod)..."
-	@docker ps --filter "name=$(PROJECT_NAME)" --format "table {{.Names}}\t{{.Status}}" | grep -E "NAMES|$(PROJECT_NAME)" || echo "No containers running"
+	@echo "Dev environment:"
+	@$(call check_local_health,dev)
+	@echo ""
+	@echo "Stg environment:"
+	@$(call check_local_health,stg)
+	@echo ""
+	@echo "Prod environment:"
+	@$(call check_local_health,prod)
 
 health-local-dev:
 	$(call check_local_health,dev)
