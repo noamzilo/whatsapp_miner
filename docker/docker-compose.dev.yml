@@ -5,9 +5,38 @@
 
 services:
   # ──────────────────────────────────────────────────────────────────────────
+  # Local Postgres seeded from latest production dump
+  # ──────────────────────────────────────────────────────────────────────────
+  db:
+    image: postgres:17
+    container_name: whatsapp_postgres_local
+    restart: "no"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: whatsapp_dev
+    volumes:
+      - ../data/postgres:/var/lib/postgresql/data
+      - ../data_snapshots/latest_prod_dump.backup:/docker-entrypoint-initdb.d/latest_prod_dump.backup:ro
+    ports:
+      - "5433:5432"
+    command: >
+      bash -c "
+        if [ ! -f /docker-entrypoint-initdb.d/latest_prod_dump.backup ]; then
+          echo '❌ ERROR: Missing data_snapshots/latest_prod_dump.backup. Run `make dump-prod-db` first.';
+          exit 1;
+        fi;
+        echo '📦 Restoring latest prod dump into local Postgres...';
+        pg_restore --clean --no-owner --no-privileges -U postgres -d postgres /docker-entrypoint-initdb.d/latest_prod_dump.backup;
+        echo '✅ Restore complete. Starting Postgres...';
+        exec docker-entrypoint.sh postgres
+      "
+  # ──────────────────────────────────────────────────────────────────────────
   # Migration Service: Dev overrides
   # ──────────────────────────────────────────────────────────────────────────
   migrate:
+    depends_on:
+      - db
     build:
       target: dev
     volumes:
@@ -21,6 +50,8 @@ services:
     build:
       target: dev
     restart: "no"  # No auto-restart in dev (easier debugging)
+    depends_on:
+      - db
     volumes:
       - ../src:/app/src:ro  # Hot reload: mount source code
       - ../migrations:/app/migrations:ro
@@ -39,6 +70,8 @@ services:
     build:
       target: dev
     restart: "no"  # No auto-restart in dev
+    depends_on:
+      - db
     volumes:
       - ../src:/app/src:ro  # Hot reload: mount source code
       - ../migrations:/app/migrations:ro
