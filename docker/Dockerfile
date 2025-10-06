@@ -67,7 +67,8 @@ COPY alembic.ini ./
 # Copy entrypoint scripts
 COPY entrypoint_whatsapp_miner.sh /entrypoint_whatsapp_miner.sh
 COPY entrypoint_message_classifier.sh /entrypoint_message_classifier.sh
-RUN chmod +x /entrypoint_whatsapp_miner.sh /entrypoint_message_classifier.sh
+COPY docker/run_migration_and_exit.sh /db/run_migration_and_exit.sh
+RUN chmod +x /entrypoint_whatsapp_miner.sh /entrypoint_message_classifier.sh /db/run_migration_and_exit.sh
 
 # Default entrypoint (can be overridden in docker-compose)
 ENTRYPOINT ["/entrypoint_whatsapp_miner.sh"]
@@ -92,7 +93,8 @@ COPY alembic.ini ./
 # Copy entrypoint scripts
 COPY entrypoint_whatsapp_miner.sh /entrypoint_whatsapp_miner.sh
 COPY entrypoint_message_classifier.sh /entrypoint_message_classifier.sh
-RUN chmod +x /entrypoint_whatsapp_miner.sh /entrypoint_message_classifier.sh
+COPY docker/run_migration_and_exit.sh /db/run_migration_and_exit.sh
+RUN chmod +x /entrypoint_whatsapp_miner.sh /entrypoint_message_classifier.sh /db/run_migration_and_exit.sh
 
 # Default entrypoint (can be overridden in docker-compose)
 ENTRYPOINT ["/entrypoint_whatsapp_miner.sh"]

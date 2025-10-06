@@ -56,9 +56,18 @@ endef
 # Function to start environment locally (with optional detached mode and port overrides)
 # Parameters: $(1)=env, $(2)=detached_flag, $(3)=miner_port, $(4)=classifier_port, $(5)=run_migrations
 define start_env_local
+@echo "🔧 Starting $(1) environment with params: detached='$(2)', miner_port='$(3)', classifier_port='$(4)', run_migrations='$(5)'"
 $(call download_env_secrets,$(1))
-@$(if $(3),SSH_PORT_MINER=$(3)) $(if $(4),SSH_PORT_CLASSIFIER=$(4)) RUN_MIGRATIONS=$(or $(5),$(RUN_MIGRATIONS)) ./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)) up $(if $(2),-d) --build
-$(if $(2),@echo "✓ $(1) environment started$(if $(3), with SSH ports)"))
+@# Pre-compute values to avoid complex shell expressions
+@$(eval _RUN_MIGRATIONS := $(or $(5),$(RUN_MIGRATIONS)))
+@$(eval _DOCKER_COMPOSE_OVERRIDE := $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)))
+@$(eval _DETACHED_FLAG := $(if $(2),-d))
+@$(eval _SSH_MINER := $(if $(3),SSH_PORT_MINER=$(3)))
+@$(eval _SSH_CLASSIFIER := $(if $(4),SSH_PORT_CLASSIFIER=$(4)))
+@echo "🔧 Computed values: RUN_MIGRATIONS='$(_RUN_MIGRATIONS)', DOCKER_COMPOSE_OVERRIDE='$(_DOCKER_COMPOSE_OVERRIDE)', DETACHED_FLAG='$(_DETACHED_FLAG)'"
+@echo "🔧 Executing: $(_SSH_MINER) $(_SSH_CLASSIFIER) RUN_MIGRATIONS=$(_RUN_MIGRATIONS) ./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) up $(_DETACHED_FLAG) --build"
+@$(_SSH_MINER) $(_SSH_CLASSIFIER) RUN_MIGRATIONS=$(_RUN_MIGRATIONS) ./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) up $(_DETACHED_FLAG) --build || (echo "❌ ERROR: Command failed in start_env_local function for environment $(1)" && exit 1)
+$(if $(2),@echo "✓ $(1) environment started$(if $(3), with SSH ports)")
 endef
 
 
@@ -235,7 +244,8 @@ dev-local:
 	@$(eval DETACHED := $(or $(DETACHED),true))
 	@# RUN_MIGRATIONS default true for dev
 	@$(eval RUN_MIGRATIONS := $(or $(RUN_MIGRATIONS),true))
-	$(call start_env_local,dev,$(if $(filter $(DETACHED),true),detached,),$(MINER_PORT),$(CLASSIFIER_PORT),$(RUN_MIGRATIONS))
+	@echo "🔍 Debug: MINER_PORT='$(MINER_PORT)', CLASSIFIER_PORT='$(CLASSIFIER_PORT)', DETACHED='$(DETACHED)', RUN_MIGRATIONS='$(RUN_MIGRATIONS)'"
+	$(call start_env_local,dev,$(if $(filter $(DETACHED),true),detached),$(MINER_PORT),$(CLASSIFIER_PORT),$(RUN_MIGRATIONS))
 
 # ────────────────────────────────────────────────────────────────────────────
 # Local Production Testing

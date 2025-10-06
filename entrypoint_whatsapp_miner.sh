@@ -6,6 +6,9 @@ set -euo pipefail
 
 echo "🚀 Starting WhatsApp Miner (message receiver)..."
 echo "🌍 Environment: ${ENV_NAME:-dev}"
+echo "🔧 Script: entrypoint_whatsapp_miner.sh"
+echo "🔧 Current directory: $(pwd)"
+echo "🔧 Python version: $(python --version 2>&1 || echo 'Python not found')"
 
 # Change to app directory
 cd /app
@@ -21,4 +24,8 @@ if [ "${ENV_NAME:-dev}" = "dev" ]; then
 fi
 
 # Run the miner application
+echo "🔧 Executing: python -u /app/src/message_mining/receive_notification.py"
+echo "🔧 Checking Python syntax..."
+python -m py_compile /app/src/message_mining/receive_notification.py || (echo "❌ SYNTAX ERROR in /app/src/message_mining/receive_notification.py" && exit 1)
+echo "✅ Python syntax check passed"
 exec python -u /app/src/message_mining/receive_notification.py

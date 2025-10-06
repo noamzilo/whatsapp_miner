@@ -6,6 +6,9 @@ set -euo pipefail
 
 echo "🚀 Starting Message Classifier service..."
 echo "🌍 Environment: ${ENV_NAME:-dev}"
+echo "🔧 Script: entrypoint_message_classifier.sh"
+echo "🔧 Current directory: $(pwd)"
+echo "🔧 Python version: $(python --version 2>&1 || echo 'Python not found')"
 
 # Change to app directory
 cd /app
@@ -21,4 +24,8 @@ if [ "${ENV_NAME:-dev}" = "dev" ]; then
 fi
 
 # Run the classifier application
-exec python -u /app/src/message_classification/classify_new_messages.py 
+echo "🔧 Executing: python -u /app/src/message_classification/classify_new_messages.py"
+echo "🔧 Checking Python syntax..."
+python -m py_compile /app/src/message_classification/classify_new_messages.py || (echo "❌ SYNTAX ERROR in /app/src/message_classification/classify_new_messages.py" && exit 1)
+echo "✅ Python syntax check passed"
+exec python -u /app/src/message_classification/classify_new_messages.py
