@@ -1,4 +1,4 @@
-.PHONY: dev-local dev-local-detached stg-local stg-local-detached prod-local prod-local-detached stg-deploy prod-deploy sync-secrets generate-env-example clean clean-local clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
+.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets generate-env-example clean clean-local clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -205,10 +205,8 @@ endef
 
 # Function to generate help section for environment commands
 define help_env_section
-@echo "  make $(1)-local              - Start $(1) environment locally"
-@echo "  make $(1)-local-detached     - Start $(1) environment locally (background)"
-$(if $(filter $(1),dev),@echo "  make $(1)-local-ports          - Start $(1) with custom SSH ports for PyCharm")
-$(if $(filter $(1),dev),@echo "  make $(1)-local-ports-detached - Start $(1) with custom SSH ports (background)")
+	@echo "  make $(1)-local              - Start $(1) environment locally (detached by default)"
+	$(if $(filter $(1),dev),@echo "                               Args: PORTS=911,912 or MINER_PORT=... CLASSIFIER_PORT=... DETACHED=true|false")
 @echo "  make health-local-$(1)       - Check $(1) container health"
 @echo "  make health-remote-$(1)      - Check $(1) EC2 container health"
 @echo "  make psql-$(1)               - Connect to $(1) database"
@@ -233,39 +231,21 @@ endef
 # ────────────────────────────────────────────────────────────────────────────
 
 dev-local:
-	$(call echo_start_env,dev)
-	$(call start_env_local,dev)
-
-dev-local-detached:
-	$(call echo_start_env,dev,(background))
-	$(call start_env_local,dev,detached)
-
-# Dev with custom SSH ports for PyCharm remote development
-dev-local-ports:
-	@echo "🚀 Starting dev environment with custom SSH ports..."
-	@echo "Usage: make dev-local-ports MINER_PORT=911 CLASSIFIER_PORT=912"
-	@echo "Default ports: miner=911, classifier=912"
-	@$(eval MINER_PORT := $(or $(MINER_PORT),911))
-	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),912))
-	$(call start_dev_local_with_ports,dev,,$(MINER_PORT),$(CLASSIFIER_PORT))
-
-dev-local-ports-detached:
-	@echo "🚀 Starting dev environment with custom SSH ports (background)..."
-	@echo "Usage: make dev-local-ports-detached MINER_PORT=9111 CLASSIFIER_PORT=9112"
-	@echo "Default ports: miner=9111, classifier=9112"
-	@$(eval MINER_PORT := $(or $(MINER_PORT),911))
-	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),912))
-	$(call start_dev_local_with_ports,dev,detached,$(MINER_PORT),$(CLASSIFIER_PORT))
+	@echo "🚀 Starting dev environment (detached by default)..."
+	@echo "Args: PORTS=911,912 (or MINER_PORT / CLASSIFIER_PORT), DETACHED=true|false"
+	@# Derive ports: prefer explicit MINER_PORT/CLASSIFIER_PORT, else PORTS, else defaults
+	@$(eval _PORTS_LIST := $(subst , ,$(strip $(PORTS))))
+	@$(eval MINER_PORT := $(or $(MINER_PORT),$(word 1,$(_PORTS_LIST)),911))
+	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),$(word 2,$(_PORTS_LIST)),912))
+	@# Detached default true; pass flag accordingly
+	@$(eval DETACHED := $(or $(DETACHED),true))
+	$(call start_dev_local_with_ports,dev,$(if $(filter $(DETACHED),true),detached,),$(MINER_PORT),$(CLASSIFIER_PORT))
 
 # ────────────────────────────────────────────────────────────────────────────
 # Local Production Testing
 # ────────────────────────────────────────────────────────────────────────────
 
 prod-local:
-	$(call echo_start_env,prod)
-	$(call start_env_local,prod)
-
-prod-local-detached:
 	$(call echo_start_env,prod,(background))
 	$(call start_env_local,prod,detached)
 
@@ -275,10 +255,6 @@ prod-local-detached:
 # ────────────────────────────────────────────────────────────────────────────
 
 stg-local:
-	$(call echo_start_env,stg)
-	$(call start_env_local,stg)
-
-stg-local-detached:
 	$(call echo_start_env,stg,(background))
 	$(call start_env_local,stg,detached)
 
@@ -515,12 +491,11 @@ help:
 	@echo "  make help                   - Show this help message"
 	@echo ""
 	@echo "PyCharm Remote Development (dev only):"
-	@echo "  make dev-local-ports        - Start dev with custom SSH ports"
-	@echo "  make dev-local-ports-detached - Start dev with custom SSH ports (background)"
+	@echo "  Use: make dev-local PORTS=911,912 DETACHED=true|false"
 	@echo "  Default SSH ports:"
 	@echo "    dev:  miner=911, classifier=912"
 	@echo "  PyCharm connection: root@localhost:PORT (password: root)"
-	@echo "  Example: make dev-local-ports MINER_PORT=911 CLASSIFIER_PORT=912"
+	@echo "  Example: make dev-local PORTS=922,923 DETACHED=false"
 	@echo "  Note: SSH access only available in development environment"
 	@echo ""
 	@echo "════════════════════════════════════════════════════════════════════"
