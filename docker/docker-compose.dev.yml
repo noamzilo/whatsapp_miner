@@ -23,7 +23,13 @@ services:
     command: >
       bash -c "
         if [ ! -f /docker-entrypoint-initdb.d/snapshots/latest_prod_dump.backup ]; then
-          echo '❌ ERROR: Missing data_snapshots/latest_prod_dump.backup. Run `make dump-prod-db` first.';
+          echo '❌ ERROR: Missing data_snapshots/latest_prod_dump.backup.';
+          echo '🔧 Run: make dump-prod-db';
+          exit 1;
+        fi;
+        if [ ! -s /docker-entrypoint-initdb.d/snapshots/latest_prod_dump.backup ]; then
+          echo '❌ ERROR: data_snapshots/latest_prod_dump.backup is empty.';
+          echo '🔧 Run: make dump-prod-db';
           exit 1;
         fi;
         echo '📦 Restoring latest prod dump into local Postgres...';
@@ -55,7 +61,7 @@ services:
     depends_on:
       - db
     volumes:
-      - ../src:/app/src:ro  # Hot reload: mount source code
+      - ../src:/app/src  # Hot reload: mount source code
       - ../migrations:/app/migrations:ro
     ports:
       - "8000:8000"  # Expose health endpoint for local testing
@@ -75,7 +81,7 @@ services:
     depends_on:
       - db
     volumes:
-      - ../src:/app/src:ro  # Hot reload: mount source code
+      - ../src:/app/src  # Hot reload: mount source code
       - ../migrations:/app/migrations:ro
     ports:
       - "8001:8001"  # Expose health endpoint for local testing
