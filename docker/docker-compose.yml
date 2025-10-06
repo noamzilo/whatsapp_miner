@@ -13,11 +13,12 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: ${BUILD_TARGET:-prod}
-    entrypoint: []  # Override default entrypoint
-    command: ["/bin/bash", "-c", "cd /app && poetry run alembic upgrade head"]
+    entrypoint: ["/docker/run_migration_and_exit.sh"]
     restart: "no"  # Run once and exit
     env_file:
       - ${ENV_FILE}  # Pass all env vars into container
+    environment:
+      - RUN_MIGRATIONS=true
     networks:
       - whatsapp_network
 

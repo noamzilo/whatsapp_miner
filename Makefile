@@ -54,17 +54,11 @@ define download_env_secrets
 endef
 
 # Function to start environment locally (with optional detached mode and port overrides)
+# Parameters: $(1)=env, $(2)=detached_flag, $(3)=miner_port, $(4)=classifier_port, $(5)=run_migrations
 define start_env_local
 $(call download_env_secrets,$(1))
-@./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)) up $(if $(2),-d) --build
-$(if $(2),@echo "✓ $(1) environment started")
-endef
-
-# Function to start dev environment with SSH port overrides
-define start_dev_local_with_ports
-$(call download_env_secrets,dev)
-@SSH_PORT_MINER=$(3) SSH_PORT_CLASSIFIER=$(4) ./scripts/docker-compose-with-env.sh .env.dev -p $(call build_project_prefix,dev) -f $(DOCKER_COMPOSE_BASE) -f $(DOCKER_COMPOSE_DEV) up $(if $(2),-d) --build
-$(if $(2),@echo "✓ dev environment started with SSH ports")
+@$(if $(3),SSH_PORT_MINER=$(3)) $(if $(4),SSH_PORT_CLASSIFIER=$(4)) RUN_MIGRATIONS=$(or $(5),$(RUN_MIGRATIONS)) ./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)) up $(if $(2),-d) --build
+$(if $(2),@echo "✓ $(1) environment started$(if $(3), with SSH ports)"))
 endef
 
 
@@ -232,14 +226,16 @@ endef
 
 dev-local:
 	@echo "🚀 Starting dev environment (detached by default)..."
-	@echo "Args: PORTS=911,912 (or MINER_PORT / CLASSIFIER_PORT), DETACHED=true|false"
+	@echo "Args: PORTS=911,912 (or MINER_PORT / CLASSIFIER_PORT), DETACHED=true|false, RUN_MIGRATIONS=true|false"
 	@# Derive ports: prefer explicit MINER_PORT/CLASSIFIER_PORT, else PORTS, else defaults
 	@$(eval _PORTS_LIST := $(subst , ,$(strip $(PORTS))))
 	@$(eval MINER_PORT := $(or $(MINER_PORT),$(word 1,$(_PORTS_LIST)),911))
 	@$(eval CLASSIFIER_PORT := $(or $(CLASSIFIER_PORT),$(word 2,$(_PORTS_LIST)),912))
 	@# Detached default true; pass flag accordingly
 	@$(eval DETACHED := $(or $(DETACHED),true))
-	$(call start_dev_local_with_ports,dev,$(if $(filter $(DETACHED),true),detached,),$(MINER_PORT),$(CLASSIFIER_PORT))
+	@# RUN_MIGRATIONS default true for dev
+	@$(eval RUN_MIGRATIONS := $(or $(RUN_MIGRATIONS),true))
+	$(call start_env_local,dev,$(if $(filter $(DETACHED),true),detached,),$(MINER_PORT),$(CLASSIFIER_PORT),$(RUN_MIGRATIONS))
 
 # ────────────────────────────────────────────────────────────────────────────
 # Local Production Testing
@@ -247,7 +243,9 @@ dev-local:
 
 prod-local:
 	$(call echo_start_env,prod,(background))
-	$(call start_env_local,prod,detached)
+	@# RUN_MIGRATIONS default false for prod
+	@$(eval RUN_MIGRATIONS := $(or $(RUN_MIGRATIONS),false))
+	$(call start_env_local,prod,detached,,,$(RUN_MIGRATIONS))
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -256,7 +254,9 @@ prod-local:
 
 stg-local:
 	$(call echo_start_env,stg,(background))
-	$(call start_env_local,stg,detached)
+	@# RUN_MIGRATIONS default false for stg
+	@$(eval RUN_MIGRATIONS := $(or $(RUN_MIGRATIONS),false))
+	$(call start_env_local,stg,detached,,,$(RUN_MIGRATIONS))
 
 
 # ────────────────────────────────────────────────────────────────────────────
