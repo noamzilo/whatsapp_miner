@@ -15,11 +15,12 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: whatsapp_dev
+    ports:
+      - "55432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../data_snapshots:/docker-entrypoint-initdb.d/snapshots:ro
-    ports:
-      - "5433:5432"
+      - ../docker/initdb.d/00-trust-remote.sh:/docker-entrypoint-initdb.d/00-trust-remote.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d whatsapp_dev"]
       interval: 5s
@@ -27,17 +28,14 @@ services:
       retries: 5
     command: >
       bash -c "
-        if [ ! -f /docker-entrypoint-initdb.d/snapshots/latest_prod_dump.backup ]; then
-          echo '❌ ERROR: Missing data_snapshots/latest_prod_dump.backup.';
-          echo '🔧 Run: make dump-prod-db';
-          exit 1;
-        fi;
-        if [ ! -s /docker-entrypoint-initdb.d/snapshots/latest_prod_dump.backup ]; then
-          echo '❌ ERROR: data_snapshots/latest_prod_dump.backup is empty.';
-          echo '🔧 Run: make dump-prod-db';
-          exit 1;
-        fi;
         echo '📦 Starting Postgres...';
+        # Ensure pg_hba.conf allows external connections
+        if [ -f /var/lib/postgresql/data/pg_hba.conf ]; then
+          echo '🔧 Updating pg_hba.conf for trust authentication...';
+          sed -i 's/^host all all all.*/host all all all trust/' /var/lib/postgresql/data/pg_hba.conf;
+        else
+          echo '⚠️ pg_hba.conf not found yet, will be created automatically by initdb.';
+        fi;
         exec docker-entrypoint.sh postgres
       "
   # ──────────────────────────────────────────────────────────────────────────
