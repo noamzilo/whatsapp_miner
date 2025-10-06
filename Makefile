@@ -519,12 +519,9 @@ dump-prod-db:
 	@mkdir -p data_snapshots
 	@TIMESTAMP=$$(date +%Y_%m_%d__%H_%M_%S); \
 		DUMP_FILE="data_snapshots/prod_dump_$${TIMESTAMP}.backup"; \
-		doppler run --project whatsapp_miner_backend --config prd -- \
-		bash -c 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" \
-		pg_dump -h "$$SUPABASE_DATABASE_HOST" \
-		-U "$$SUPABASE_DATABASE_USER" \
-		-d "$$SUPABASE_DATABASE_NAME" \
-		-F c -b -v -f "$${DUMP_FILE}"'; \
+		DUMP_FILE="$${DUMP_FILE}" doppler run --project whatsapp_miner_backend --config prd -- \
+		bash -c 'pg_dump "$$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER" \
+		-F c -b -v -f "$${DUMP_FILE}" && echo "File created: $$(ls -la "$${DUMP_FILE}")"'; \
 		ln -sf "$${DUMP_FILE}" data_snapshots/latest_prod_dump.backup; \
 		echo "✅ Dump complete: $${DUMP_FILE} (linked to latest_prod_dump.backup)"
 
