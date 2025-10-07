@@ -26,6 +26,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - whatsapp_network
     command: >
       bash -c "
         echo '📦 Starting Postgres...';

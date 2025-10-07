@@ -1,4 +1,4 @@
-.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets generate-env-example clean clean-local clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
+.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -221,6 +221,7 @@ endef
 define help_env_section
 	@echo "  make $(1)-local              - Start $(1) environment locally (detached by default)"
 	$(if $(filter $(1),dev),@echo "                               Args: PORTS=911,912 or MINER_PORT=... CLASSIFIER_PORT=... DETACHED=true|false")
+@echo "  make clean-local-$(1)        - Clean $(1) containers and volumes"
 @echo "  make health-local-$(1)       - Check $(1) container health"
 @echo "  make health-remote-$(1)      - Check $(1) EC2 container health"
 @echo "  make psql-$(1)               - Connect to $(1) database"
@@ -381,6 +382,27 @@ clean-local:
 	@echo "Cleaning up unused volumes..."
 	@docker volume prune -f 2>/dev/null || true
 	@echo "✓ Local cleanup complete"
+
+clean-local-dev:
+	@echo "🧹 Cleaning up dev containers and volumes..."
+	$(call clean_local_env,dev)
+	@echo "Cleaning up unused volumes..."
+	@docker volume prune -f 2>/dev/null || true
+	@echo "✓ Dev cleanup complete"
+
+clean-local-stg:
+	@echo "🧹 Cleaning up stg containers and volumes..."
+	$(call clean_local_env,stg)
+	@echo "Cleaning up unused volumes..."
+	@docker volume prune -f 2>/dev/null || true
+	@echo "✓ Stg cleanup complete"
+
+clean-local-prod:
+	@echo "🧹 Cleaning up prod containers and volumes..."
+	$(call clean_local_env,prod)
+	@echo "Cleaning up unused volumes..."
+	@docker volume prune -f 2>/dev/null || true
+	@echo "✓ Prod cleanup complete"
 
 clean-remote-stg:
 	$(call clean_remote_env,stg)
