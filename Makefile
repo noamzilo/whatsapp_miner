@@ -1,4 +1,4 @@
-.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
+.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets-docker sync-secrets-env generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -47,10 +47,10 @@ define build_container_names
 $(MINER_CONTAINER)_$(1) $(CLASSIFIER_CONTAINER)_$(1)
 endef
 
-# Function to download environment secrets
+# Function to download environment secrets (parameterized format: docker|env)
 define download_env_secrets
-@echo "📝 Updating .env.$(1) from Doppler..."
-@doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format docker --no-file --silent > .env.$(1)
+@echo "📝 Updating .env.$(1) from Doppler (format=$(2))..."
+@doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format=$(2) --no-file --silent > .env.$(1)
 endef
 
 # Function to run docker compose with environment variables for local environment
@@ -74,7 +74,7 @@ endef
 # Parameters: $(1)=env, $(2)=detached_flag, $(3)=miner_port, $(4)=classifier_port, $(5)=run_migrations
 define start_env_local
 @echo "🔧 Starting $(1) environment with params: detached='$(2)', miner_port='$(3)', classifier_port='$(4)', run_migrations='$(5)'"
-$(call download_env_secrets,$(1))
+$(call download_env_secrets,$(1),docker)
 @# Pre-compute values to avoid complex shell expressions
 @$(eval _RUN_MIGRATIONS := $(or $(5),$(RUN_MIGRATIONS)))
 @$(eval _DOCKER_COMPOSE_OVERRIDE := $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)))
@@ -285,20 +285,25 @@ stg-local:
 # Remote Deployment Testing with act
 # ────────────────────────────────────────────────────────────────────────────
 
-stg-deploy: sync-secrets
+stg-deploy: sync-secrets-docker
 	$(call test_deploy_env,stg)
 
-prod-deploy: sync-secrets
+prod-deploy: sync-secrets-docker
 	$(call test_deploy_env,prod)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Secret Management
 # ────────────────────────────────────────────────────────────────────────────
 
-sync-secrets:
-	@echo "🔐 Syncing secrets from Doppler..."
-	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env)))
-	@echo "✓ Secrets synced to .env.dev, .env.stg, and .env.prod"
+sync-secrets-docker:
+	@echo "🔐 Syncing secrets from Doppler (docker format)..."
+	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),docker))
+	@echo "✓ Secrets (docker format) synced to .env.dev, .env.stg, and .env.prod"
+
+sync-secrets-env:
+	@echo "🔐 Syncing secrets from Doppler (env format)..."
+	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),env))
+	@echo "✓ Secrets (env format) synced to .env.dev, .env.stg, and .env.prod"
 
 generate-env-example:
 	@echo "📝 Generating .env.example from Doppler..."
@@ -518,6 +523,10 @@ help:
 	@echo "  make stg-deploy             - Test staging deployment with act"
 	@echo "  make prod-deploy            - Test prod deployment with act"
 	@echo ""
+	@echo "Secrets:"
+	@echo "  make sync-secrets-docker    - Update .env.* from Doppler in docker format"
+	@echo "  make sync-secrets-env       - Update .env.* from Doppler in env format"
+	@echo ""
 	@echo "Health Checks:"
 	@echo "  make health-local           - Check all local container health"
 	@echo ""
@@ -526,7 +535,8 @@ help:
 	@echo "  make ssh-prod               - SSH into prod EC2 instance"
 	@echo ""
 	@echo "Secrets:"
-	@echo "  make sync-secrets           - Update .env files from Doppler"
+	@echo "  make sync-secrets-docker    - Update .env files from Doppler (docker format)"
+	@echo "  make sync-secrets-env       - Update .env files from Doppler (env format)"
 	@echo "  make generate-env-example   - Generate .env.example template"
 	@echo ""
 	@echo "Logs:"
