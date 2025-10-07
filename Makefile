@@ -49,8 +49,8 @@ endef
 
 # Function to download environment secrets (parameterized format: docker|env)
 define download_env_secrets
-@echo "📝 Updating .env.$(1) from Doppler (format=$(2))..."
-@doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format=$(2) --no-file --silent > .env.$(1)
+echo "📝 Updating .env.$(1) from Doppler (format=$(2))..."
+doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format=$(2) --no-file --silent > .env.$(1)
 endef
 
 # Function to run docker compose with environment variables for local environment
@@ -297,12 +297,12 @@ prod-deploy: sync-secrets-docker
 
 sync-secrets-docker:
 	@echo "🔐 Syncing secrets from Doppler (docker format)..."
-	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),docker))
+	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),docker);)
 	@echo "✓ Secrets (docker format) synced to .env.dev, .env.stg, and .env.prod"
 
 sync-secrets-env:
 	@echo "🔐 Syncing secrets from Doppler (env format)..."
-	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),env))
+	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),env);)
 	@echo "✓ Secrets (env format) synced to .env.dev, .env.stg, and .env.prod"
 
 generate-env-example:
