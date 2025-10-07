@@ -565,3 +565,12 @@ dump-prod-db:
 		ln -sf "$${DUMP_FILE}" data_snapshots/latest_prod_dump.backup; \
 		echo "✅ Dump complete: $${DUMP_FILE} (linked to latest_prod_dump.backup)"
 
+# ────────────────────────────────────────────────────────────────────────────
+# Rebuild local dev DB from latest production snapshot
+# ────────────────────────────────────────────────────────────────────────────
+rebuild-dev-db-from-prod:
+	@echo "🛑 Stopping dev stack and removing volumes (clean DB reset)..."
+	@$(call docker_compose_local,dev,down -v --remove-orphans) 2>/dev/null || true
+	@echo "🚀 Recreating dev environment (this will restore DB on fresh init if snapshot exists)..."
+	@$(MAKE) dev-local
+
