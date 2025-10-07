@@ -111,7 +111,7 @@ endef
 # Function to check local container health
 define check_local_health
 @echo "🏥 Checking $(1) container health..."
-@$(call docker_compose_local,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\"") 2>/dev/null || echo "No $(1) containers running"
+@$(call docker_compose_local,$(1),ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\") 2>/dev/null || echo "No $(1) containers running"
 endef
 
 # Function to check remote container health
@@ -143,7 +143,7 @@ endef
 # Function to clean local containers for environment
 define clean_local_env
 @echo "Stopping and removing $(1) containers and volumes..."
-@$(call docker_compose_local,$(1),"down -v --remove-orphans") 2>/dev/null || true
+@$(call docker_compose_local,$(1),down -v --remove-orphans) 2>/dev/null || true
 @echo "✓ $(1) environment cleaned up"
 endef
 
@@ -164,28 +164,28 @@ endef
 # Function to show logs for environment
 define show_logs_env
 @echo "$(1) logs:"
-@$(call docker_compose_local,$(1),"logs --tail 10") 2>/dev/null || echo "No $(1) containers running"
+@$(call docker_compose_local,$(1),logs --tail 10) 2>/dev/null || echo "No $(1) containers running"
 endef
 
 # Function to tail logs for environment
 define tail_logs_env
-@$(call docker_compose_local,$(1),"logs -f")
+@$(call docker_compose_local,$(1),logs -f)
 endef
 
 # Function to tail logs for specific service in environment
 define tail_logs_service_env
-@$(call docker_compose_local,$(1),"logs -f $(2)")
+@$(call docker_compose_local,$(1),logs -f $(2))
 endef
 
 # Function to exec into container
 define docker_exec_env
-@$(call docker_compose_local,$(1),"exec $(2) bash")
+@$(call docker_compose_local,$(1),exec $(2) bash)
 endef
 
 # Function to show container status for environment
 define show_container_status_env
 @echo "$(1) containers:"
-@$(call docker_compose_local,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\"") 2>/dev/null || echo "No $(1) containers"
+@$(call docker_compose_local,$(1),ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\") 2>/dev/null || echo "No $(1) containers"
 endef
 
 # Function to show remote container status
@@ -197,13 +197,13 @@ endef
 # Function to restart environment
 define restart_env
 @echo "🔄 Restarting $(1) services..."
-@$(call docker_compose_local,$(1),"restart")
+@$(call docker_compose_local,$(1),restart)
 endef
 
 # Function to stop environment
 define stop_env
 @echo "🛑 Stopping $(1) services..."
-@$(call docker_compose_local,$(1),"stop")
+@$(call docker_compose_local,$(1),stop)
 endef
 
 # Function to test deployment with act
