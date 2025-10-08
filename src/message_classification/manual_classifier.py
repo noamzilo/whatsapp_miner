@@ -1,5 +1,4 @@
 from typing import Optional
-from pydantic import BaseModel, Field
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from joblib import Memory
@@ -7,28 +6,16 @@ from joblib import Memory
 from src.utils.log import log_in_out
 from src.message_classification.message_classification_logger import logger
 from src.paths import cache_root
-
-
-class LeadDecision(BaseModel):
-    is_lead: bool = Field(description="Whether the message is a lead (purchase intent + clear business)")
-    business_type: Optional[str] = Field(default=None, description="The business that can fulfill the need if is_lead=true")
-    
-    @classmethod
-    def validate_schema(cls):
-        """Validate that all fields have descriptions"""
-        for field_name, field_info in cls.model_fields.items():
-            if not field_info.description:
-                raise ValueError(f"Field '{field_name}' in {cls.__name__} must have a description")
-        return True
+from src.message_classification.pydantic_models import LeadDecision
+from src.utils.llm.schema_builder import SchemaBuilder
 
 
 class ManualMessageClassifier:
     def __init__(self):
-        # Validate schema at initialization
-        LeadDecision.validate_schema()
-        
+        # Schema validation happens automatically at import time
         self.client = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
         self.structured_model = self.client.with_structured_output(LeadDecision)
+        self.schema_builder = SchemaBuilder()
         
         # Configure on-disk cache for single-message+history classifications
         self._cache_dir = cache_root / 'manual_classifier'
@@ -37,18 +24,8 @@ class ManualMessageClassifier:
     
     
     def _generate_schema_instructions(self) -> str:
-        """Generate schema instructions dynamically from the Pydantic model"""
-        schema_parts = []
-        for field_name, field_info in LeadDecision.model_fields.items():
-            field_type = field_info.annotation.__name__ if hasattr(field_info.annotation, '__name__') else str(field_info.annotation)
-            if field_info.annotation == Optional[str] or str(field_info.annotation).startswith('typing.Union'):
-                field_type = "string or null"
-            elif field_info.annotation == bool:
-                field_type = "boolean"
-            
-            schema_parts.append(f"- {field_name} ({field_type}): {field_info.description}")
-        
-        return f"Respond with a JSON object containing these fields:\n" + "\n".join(schema_parts)
+        schema_fields = self.schema_builder.generate_schema_instructions(LeadDecision)
+        return f"Respond with a JSON object containing these fields:\n{schema_fields}"
     
     def _format_context_block(self, context_rows) -> str:
         """Format context rows into a readable conversation block"""
