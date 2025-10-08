@@ -1,4 +1,4 @@
-.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets-docker sync-secrets-env generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod help
+.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets-docker sync-secrets-env generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod cache-clear cache-clear-manual-classifier help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -548,6 +548,8 @@ help:
 	@echo "  make ps-remote              - Show remote container status on EC2"
 	@echo "  make clean                  - Clean local containers and volumes"
 	@echo "  make clean-local            - Clean local containers and volumes"
+	@echo "  make cache-clear            - Clear all caches"
+	@echo "  make cache-clear-manual-classifier - Clear manual classifier cache"
 	@echo "  make help                   - Show this help message"
 	@echo ""
 	@echo "PyCharm Remote Development (dev only):"
@@ -583,4 +585,19 @@ rebuild-dev-db-from-prod:
 	@$(call docker_compose_local,dev,down -v --remove-orphans) 2>/dev/null || true
 	@echo "🚀 Recreating dev environment (this will restore DB on fresh init if snapshot exists)..."
 	@$(MAKE) dev-local
+
+# ────────────────────────────────────────────────────────────────────────────
+# Cache Management
+# ────────────────────────────────────────────────────────────────────────────
+
+cache-clear-manual-classifier:
+	@echo "🗑️  Clearing manual classifier cache..."
+	@rm -rf cache/manual_classifier
+	@echo "✓ Manual classifier cache cleared"
+
+cache-clear:
+	@echo "🗑️  Clearing all caches..."
+	@echo "Clearing manual classifier cache..."
+	@rm -rf cache/
+	@echo "✓ All caches cleared"
 

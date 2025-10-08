@@ -97,7 +97,7 @@ class MessageAnalysisOrchestrator:
             parsed = self.classifier.classify_message_with_history(
                 message_id=str(row.get('message_id')),
                 context_rows=context_rows,
-                current_message=row,
+                message_data=row.to_dict(),
                 window_size=self.window_size
             )
             

@@ -1,4 +1,4 @@
-.cache/
+cache/
 # Environment and secrets
 /.env
 .env

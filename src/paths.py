@@ -5,7 +5,7 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parent.parent
 src_root = project_root / "src"
 logs_root = project_root / "logs"
-cache_root = project_root / ".cache"
+cache_root = project_root / "cache"
 
 if str(project_root) not in sys.path:
 	sys.path.insert(0, str(project_root))
