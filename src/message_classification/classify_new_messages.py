@@ -34,7 +34,7 @@ from src.db.dal import (
     create_lead_record, get_or_create_lead_category, get_or_create_intent_type,
     get_classification_prompt, match_with_existing_categories
 )
-from src.env_var_injection import message_classifier_run_every_seconds
+from src.env_var_injection import message_classifier_run_every_seconds, message_classifier_enabled
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.dal import get_group_by_id, get_user_by_id
@@ -233,6 +233,11 @@ class MessageClassifierService:
     
     def run_continuous(self):
         """Run the classifier in a continuous loop."""
+        if not message_classifier_enabled:
+            logger.info("🚫 Message Classifier Service is DISABLED via FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED feature flag")
+            logger.info("💡 To enable: set FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED=true in your environment")
+            return
+            
         logger.info("🚀 Starting Message Classifier Service")
         logger.info(f"⏰ Running every {self.run_every_seconds} seconds")
         

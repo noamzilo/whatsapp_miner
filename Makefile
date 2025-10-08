@@ -495,6 +495,13 @@ restart-stg:
 restart-prod:
 	$(call restart_env,prod)
 
+restart:
+	@echo "🔄 Restarting all local environments..."
+	$(call restart_env,dev)
+	$(call restart_env,stg)
+	$(call restart_env,prod)
+	@echo "✓ All environments restarted"
+
 stop-dev:
 	$(call stop_env,dev)
 
@@ -550,6 +557,7 @@ help:
 	@echo "  make ps                     - Show container status for all projects (local + remote)"
 	@echo "  make ps-local               - Show local container status for all projects"
 	@echo "  make ps-remote              - Show remote container status on EC2"
+	@echo "  make restart                - Restart all local environments"
 	@echo "  make clean                  - Clean local containers and volumes"
 	@echo "  make clean-local            - Clean local containers and volumes"
 	@echo "  make cache-clear            - Clear all caches"

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 # Import environment variables with fallbacks for testing
 
-from src.env_var_injection import message_classifier_run_every_seconds, groq_api_key, message_classifier_enabled
+from src.env_var_injection import message_classifier_run_every_seconds, groq_api_key
 
 
 # Import logging utilities
@@ -583,43 +583,3 @@ Respond with ONLY a valid JSON object matching the structure above."""
         
         return processed_count
     
-    def run_continuous(self):
-        """Run the classifier in a continuous loop."""
-        if not message_classifier_enabled:
-            logger.info("🚫 Message Classifier Service is DISABLED via FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED feature flag")
-            logger.info("💡 To enable: set FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED=true in your environment")
-            return
-            
-        logger.info("🚀 Starting Message Classifier Service")
-        logger.info(f"⏰ Running every {self.run_every_seconds} seconds")
-        
-        iteration = 0
-        while True:
-            iteration += 1
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            logger.info(f"🔄 Iteration {iteration} - {current_time}")
-            
-            try:
-                # This would be implemented by the service layer that coordinates
-                # between the classifier and database operations
-                logger.info("Classification iteration completed")
-            except Exception as e:
-                logger.error(f"❌ Error in classification iteration: {e}")
-            
-            # Sleep for the configured interval
-            time.sleep(self.run_every_seconds)
-
-
-if __name__ == "__main__":
-    import os
-    
-    classifier = MessageClassifier()
-    
-    try:
-        classifier.run_continuous()
-    except KeyboardInterrupt:
-        logger.info("🛑 Message Classifier Service stopped by user")
-    except Exception as e:
-        logger.error(f"❌ Message Classifier Service error: {e}")
-        raise 
