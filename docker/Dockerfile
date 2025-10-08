@@ -59,6 +59,9 @@ RUN echo 'UseDNS no' >> /etc/ssh/sshd_config && \
 RUN mkdir -p /root/.ssh && \
     chmod 700 /root/.ssh
 
+# Add ll alias to bashrc
+RUN echo 'alias ll="ls -la"' >> /root/.bashrc
+
 # Copy source code (will be overridden by volume mount in dev)
 COPY src ./src
 COPY migrations ./migrations
