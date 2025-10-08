@@ -17,6 +17,7 @@ dependencies = [
 	"alembic (>=1.16.4,<2.0.0)",
 	"groq (>=0.4.0,<1.0.0)",
 	"langchain (>=0.1.0,<1.0.0)",
+	"langchain-openai (>=0.1.0,<1.0.0)",
 	"langchain-groq (>=0.0.1,<1.0.0)",
 	"fastapi (>=0.115.0,<1.0.0)",
 	"uvicorn (>=0.32.0,<1.0.0)",
