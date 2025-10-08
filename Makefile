@@ -25,6 +25,10 @@ DOCKER_COMPOSE_PROD := docker/docker-compose.prod.yml
 # Common Doppler project
 DOPPLER_PROJECT := whatsapp_miner_backend
 
+# Global Python environment setup
+export PYTHONPATH := $(shell pwd)
+export WORKING_DIR := $(shell pwd)
+
 # SSH key handling
 SSH_KEY_SETUP := KEY_FILE="/tmp/temp_key_$$(date +%s).pem" && echo "$$AWS_EC2_PEM_CHATBOT_SA_B64" | base64 -d > "$$KEY_FILE" && chmod 600 "$$KEY_FILE" && trap "rm -f $$KEY_FILE" EXIT
 
@@ -616,7 +620,7 @@ cache-clear:
 # Parameters: $(1)=env, $(2)=action, $(3)=dry_run_flag
 define run_db_management
 @echo "$(if $(3),🔍 DRY RUN: Checking how many messages would be affected in $(1) environment...,🔄 $(2) for $(1) environment...)"
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)'
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && poetry shell && poetry run python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)'
 endef
 
 # Named entry points for reset operations
