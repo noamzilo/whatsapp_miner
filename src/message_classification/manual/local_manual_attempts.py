@@ -23,7 +23,7 @@ class MessageAnalysisOrchestrator:
         self.classifier = WhatsappMessageClassifier()
     
     @log_in_out(logger=logger)
-    def download_messages_dataframe(self, limit: int = 50) -> pd.DataFrame:
+    def download_messages_dataframe(self, limit: int = 50, offset=0) -> pd.DataFrame:
         """Download messages only from the Laureles group ordered by time.
 
         Filters by whatsapp_group_id and is_real == True.
@@ -52,6 +52,7 @@ class MessageAnalysisOrchestrator:
             .filter(WhatsAppMessage.is_real == True)
             .filter(WhatsAppGroup.whatsapp_group_id == self.target_group_id)
             .order_by(WhatsAppMessage.timestamp.asc(), WhatsAppMessage.id.asc())
+            .offset(offset)
             .limit(limit)
         )
 
@@ -109,12 +110,12 @@ class MessageAnalysisOrchestrator:
         return messages_df
     
     @log_in_out(logger=logger)
-    def run_analysis(self, limit: int = 11) -> Optional[pd.DataFrame]:
+    def run_analysis(self, limit: int = 11, offset: int=0) -> Optional[pd.DataFrame]:
         """Run the complete message analysis pipeline."""
         assert os.environ.get('OPENAI_API_KEY'), "OPENAI_API_KEY environment variable is required"
         
         pd.set_option('display.max_columns', None)
-        messages_df = self.download_messages_dataframe(limit=limit)
+        messages_df = self.download_messages_dataframe(limit=limit, offset=offset)
         
         if messages_df.empty:
             logger.warning("No messages found for analysis")
@@ -130,7 +131,7 @@ class MessageAnalysisOrchestrator:
 
 def main():
     orchestrator = MessageAnalysisOrchestrator()
-    orchestrator.run_analysis()
+    orchestrator.run_analysis(limit=20, offset=20)
 
 
 if __name__ == "__main__":
