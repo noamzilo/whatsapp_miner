@@ -35,6 +35,7 @@ from src.db.dal import (
     get_classification_prompt, match_with_existing_categories
 )
 from src.env_var_injection import message_classifier_run_every_seconds, message_classifier_enabled
+from src.utils.keep_alive import keep_alive_for_health_checks
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.dal import get_group_by_id, get_user_by_id
@@ -233,11 +234,6 @@ class MessageClassifierService:
     
     def run_continuous(self):
         """Run the classifier in a continuous loop."""
-        if not message_classifier_enabled:
-            logger.info("🚫 Message Classifier Service is DISABLED via FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED feature flag")
-            logger.info("💡 To enable: set FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED=true in your environment")
-            return
-            
         logger.info("🚀 Starting Message Classifier Service")
         logger.info(f"⏰ Running every {self.run_every_seconds} seconds")
         
@@ -319,6 +315,13 @@ def main():
     health_port = int(os.getenv("HEALTH_PORT", "8001"))
     start_health_server("message-classifier", health_check_fn=check_classifier_health, port=health_port)
     logger.info(f"✅ Health server started on port {health_port} with DB validation")
+    
+    # Check feature flag for message classifier
+    if not message_classifier_enabled:
+        keep_alive_for_health_checks("Message classifier", "FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED")
+        return
+
+    logger.info("✅ Message classifier is ENABLED by feature flag FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED")
     
     service = MessageClassifierService()
     

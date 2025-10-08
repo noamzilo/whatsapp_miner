@@ -8,7 +8,8 @@ from sqlalchemy import event
 from datetime import datetime, timedelta
 from whatsapp_api_client_python import API
 from json import dumps
-from src.env_var_injection import instance_id, api_token
+from src.env_var_injection import instance_id, api_token, message_miner_enabled
+from src.utils.keep_alive import keep_alive_for_health_checks
 from src.utils.log import get_logger, setup_logger
 from src.utils.health_server import start_health_server
 from src.db.db_interface import get_session_local
@@ -65,6 +66,13 @@ def main():
 	health_port = int(os.getenv("HEALTH_PORT", "8000"))
 	start_health_server("whatsapp-miner", health_check_fn=check_miner_health, port=health_port)
 	logger.info(f"✅ Health server started on port {health_port} with DB validation")
+
+	# Check feature flag for message miner
+	if not message_miner_enabled:
+		keep_alive_for_health_checks("Message miner", "FEATURE_FLAG_MESSAGE_MINER_ENABLED")
+		return
+
+	logger.info("✅ Message miner is ENABLED by feature flag FEATURE_FLAG_MESSAGE_MINER_ENABLED")
 
 	# Start liveness background thread (daemon so it won't block shutdown)
 	t = threading.Thread(target=_liveness_loop, name="liveness", daemon=True)

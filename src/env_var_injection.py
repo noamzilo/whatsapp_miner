@@ -24,3 +24,6 @@ groq_api_key = sanitize_env_var("GROQ_API_KEY")
 # Feature flags
 message_classifier_enabled_raw = sanitize_env_var("FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED", "true")
 message_classifier_enabled = message_classifier_enabled_raw.lower() in ("true", "1", "yes", "on")
+
+message_miner_enabled_raw = sanitize_env_var("FEATURE_FLAG_MESSAGE_MINER_ENABLED", "true")
+message_miner_enabled = message_miner_enabled_raw.lower() in ("true", "1", "yes", "on")

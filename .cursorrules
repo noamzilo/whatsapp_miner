@@ -6,7 +6,7 @@
 - Be careful of n+1 queries when writing sql queries or using sqlalchemy.
 
 * versions of things:
-- Docker is running directly on Windows 11, make scripts are run from WSL2 ubuntu 24.04.
+- Scripts are run from WSL2 ubuntu 24.04.
 - Docker Compose version v2.38.2-desktop.1
 - Docker version 27.5.1, build 27.5.1-0ubuntu3~24.04.2
 - Python 3.11.13
