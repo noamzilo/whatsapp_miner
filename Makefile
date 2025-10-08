@@ -552,6 +552,13 @@ help:
 	@echo "  make cache-clear-manual-classifier - Clear manual classifier cache"
 	@echo "  make help                   - Show this help message"
 	@echo ""
+	@echo "Database Management:"
+	@echo "  make reset-llm-processed-dev     - Reset llm_processed flag for all messages (dev)"
+	@echo "  make reset-llm-processed-stg      - Reset llm_processed flag for all messages (stg)"
+	@echo "  make reset-llm-processed-prod    - Reset llm_processed flag for all messages (prod)"
+	@echo "  make reset-llm-processed-*-dry-run - Check how many messages would be reset (dry run)"
+	@echo "  make llm-processed-stats-*       - Get statistics about processed messages"
+	@echo ""
 	@echo "PyCharm Remote Development (dev only):"
 	@echo "  Use: make dev-local PORTS=911,912 DETACHED=true|false"
 	@echo "  Default SSH ports:"
@@ -600,4 +607,45 @@ cache-clear:
 	@echo "Clearing manual classifier cache..."
 	@rm -rf cache/
 	@echo "✓ All caches cleared"
+
+# ────────────────────────────────────────────────────────────────────────────
+# Database Management
+# ────────────────────────────────────────────────────────────────────────────
+
+# Function to run database management commands
+# Parameters: $(1)=env, $(2)=action, $(3)=dry_run_flag
+define run_db_management
+@echo "$(if $(3),🔍 DRY RUN: Checking how many messages would be affected in $(1) environment...,🔄 $(2) for $(1) environment...)"
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)'
+endef
+
+# Named entry points for reset operations
+reset-llm-processed-dev:
+	$(call run_db_management,dev,reset)
+
+reset-llm-processed-stg:
+	$(call run_db_management,stg,reset)
+
+reset-llm-processed-prod:
+	$(call run_db_management,prod,reset)
+
+# Named entry points for dry run operations
+reset-llm-processed-dev-dry-run:
+	$(call run_db_management,dev,reset,true)
+
+reset-llm-processed-stg-dry-run:
+	$(call run_db_management,stg,reset,true)
+
+reset-llm-processed-prod-dry-run:
+	$(call run_db_management,prod,reset,true)
+
+# Named entry points for statistics
+llm-processed-stats-dev:
+	$(call run_db_management,dev,stats)
+
+llm-processed-stats-stg:
+	$(call run_db_management,stg,stats)
+
+llm-processed-stats-prod:
+	$(call run_db_management,prod,stats)
 

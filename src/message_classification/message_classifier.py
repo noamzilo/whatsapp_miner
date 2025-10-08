@@ -17,12 +17,9 @@ from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
 # Import environment variables with fallbacks for testing
-try:
-    from src.env_var_injection import message_classifier_run_every_seconds, groq_api_key
-except RuntimeError:
-    # Fallback for testing without environment variables
-    message_classifier_run_every_seconds = 30
-    groq_api_key = "test_key"
+
+from src.env_var_injection import message_classifier_run_every_seconds, groq_api_key, message_classifier_enabled
+
 
 # Import logging utilities
 from src.utils.log import get_logger, setup_logger
@@ -588,6 +585,11 @@ Respond with ONLY a valid JSON object matching the structure above."""
     
     def run_continuous(self):
         """Run the classifier in a continuous loop."""
+        if not message_classifier_enabled:
+            logger.info("🚫 Message Classifier Service is DISABLED via FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED feature flag")
+            logger.info("💡 To enable: set FEATURE_FLAG_MESSAGE_CLASSIFIER_ENABLED=true in your environment")
+            return
+            
         logger.info("🚀 Starting Message Classifier Service")
         logger.info(f"⏰ Running every {self.run_every_seconds} seconds")
         
