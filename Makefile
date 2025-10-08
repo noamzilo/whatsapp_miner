@@ -61,7 +61,7 @@ endef
 # Parameters: $(1)=env, $(2)=docker compose command and args
 define docker_compose_local
 @$(eval _DOCKER_COMPOSE_OVERRIDE := $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)))
-@cd docker && ../scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) $(2)
+@cd docker && ../scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker-compose.yml -f $(notdir $(_DOCKER_COMPOSE_OVERRIDE)) $(2)
 endef
 
 # Function to run docker compose with environment variables for remote environment
@@ -147,8 +147,7 @@ endef
 # Function to clean local containers for environment
 define clean_local_env
 @echo "Stopping and removing $(1) containers and volumes..."
-@$(call docker_compose_local,$(1),down -v --remove-orphans) 2>/dev/null || true
-$(if $(filter $(1),dev),@echo "Cleaning up PostgreSQL container..." && docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml down -v --remove-orphans 2>/dev/null || true)
+@$(call docker_compose_local,$(1),down -v --remove-orphans) 2>/dev/null || echo "No $(1) containers to clean up"
 @echo "✓ $(1) environment cleaned up"
 endef
 
