@@ -620,7 +620,7 @@ cache-clear:
 # Parameters: $(1)=env, $(2)=action, $(3)=dry_run_flag
 define run_db_management
 @echo "$(if $(3),🔍 DRY RUN: Checking how many messages would be affected in $(1) environment...,🔄 $(2) for $(1) environment...)"
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && poetry shell && poetry run python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)'
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && /mnt/c/Users/noams/src/whatsapp_miner/.venv/bin/python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)'
 endef
 
 # Named entry points for reset operations

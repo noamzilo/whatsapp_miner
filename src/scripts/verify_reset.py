@@ -14,8 +14,9 @@ project_root = Path(__file__).resolve().parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.db.db import (
-    get_db_session, get_total_messages_count, get_processed_messages_count,
+from src.db.db_interface import get_db_session
+from src.db.dal import (
+    get_total_messages_count, get_processed_messages_count,
     get_unprocessed_messages_count, get_leads_count, get_classifications_count,
     get_categories_count
 )

@@ -29,7 +29,7 @@ from src.utils.log import get_logger, setup_logger
 from src.utils.health_server import start_health_server
 from src.message_classification.message_classifier import MessageClassifier
 from src.db.db_interface import get_db_session
-from src.db.db import (
+from src.db.dal import (
     get_unclassified_messages, mark_message_as_processed, create_classification_record,
     create_lead_record, get_or_create_lead_category, get_or_create_intent_type,
     get_classification_prompt, match_with_existing_categories
@@ -37,7 +37,7 @@ from src.db.db import (
 from src.env_var_injection import message_classifier_run_every_seconds
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.db.models.whatsapp_user import WhatsAppUser
-from src.db.db import get_group_by_id, get_user_by_id
+from src.db.dal import get_group_by_id, get_user_by_id
 from sqlalchemy import text
 from src.db.db_interface import get_session_local
 

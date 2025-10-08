@@ -15,7 +15,7 @@ from src.db.db_interface import get_session_local
 from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
-from src.db.db import get_message_by_message_id, get_user_by_whatsapp_id, get_group_by_whatsapp_id
+from src.db.dal import get_message_by_message_id, get_user_by_whatsapp_id, get_group_by_whatsapp_id
 # from src.message_queue.redis_streams_queue import RedisMessageQueue  # Temporarily disabled
 from src.env_var_injection import database_url
 

@@ -24,7 +24,7 @@ from src.env_var_injection import message_classifier_run_every_seconds, groq_api
 # Import logging utilities
 from src.utils.log import get_logger, setup_logger
 from src.paths import logs_root
-from src.db.db import get_category_names, get_message_by_id, get_lead_by_id, get_total_leads_count
+from src.db.dal import get_category_names, get_message_by_id, get_lead_by_id, get_total_leads_count
 
 # Get logger (setup_logger should only be called in main runner files)
 logger = get_logger(__name__)
@@ -448,7 +448,7 @@ Respond with ONLY a valid JSON object matching the structure above."""
     
     def process_classification_results(self, classification_results: List[Dict[str, Any]], session) -> int:
         """Process classification results and update database. Returns number of processed messages."""
-        from src.db.db import (
+        from src.db.dal import (
             mark_message_as_processed, create_classification_record,
             create_lead_record, get_or_create_lead_category, get_or_create_intent_type,
             get_classification_prompt, match_with_existing_categories

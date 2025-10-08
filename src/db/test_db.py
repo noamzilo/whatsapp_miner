@@ -25,7 +25,7 @@ from src.db.models.detected_lead import DetectedLead
 from src.db.models.lead_classification_prompt import LeadClassificationPrompt
 from src.db.models.lead_category import LeadCategory
 from src.db.models.message_intent_type import MessageIntentType
-from src.db.db import (
+from src.db.dal import (
     create_or_get_user, create_or_get_group, create_message_with_dependencies,
     get_or_create_lead_category, get_or_create_intent_type, get_classification_prompt
 )

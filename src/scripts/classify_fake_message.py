@@ -28,7 +28,7 @@ from src.db.models.message_intent_classification import MessageIntentClassificat
 from src.db.models.detected_lead import DetectedLead
 from src.db.models.lead_category import LeadCategory
 from src.db.models.message_intent_type import MessageIntentType
-from src.db.db import (
+from src.db.dal import (
     get_lead_statistics, get_detailed_lead_summary, get_processing_summary,
     create_fake_message_with_dependencies, get_message_by_id
 )

@@ -23,8 +23,9 @@ if str(project_root) not in sys.path:
 
 # Import paths for relative imports
 from src.paths import project_root
-from src.db.db import (
-    get_db_session, update_messages_to_unprocessed, delete_all_leads,
+from src.db.db_interface import get_db_session
+from src.db.dal import (
+    update_messages_to_unprocessed, delete_all_leads,
     delete_all_classifications, delete_all_categories, get_processed_messages_count,
     get_leads_count, get_classifications_count, get_categories_count
 )
