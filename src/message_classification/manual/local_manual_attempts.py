@@ -15,7 +15,7 @@ from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
 from src.utils.log import log_in_out
 from src.message_classification.message_classification_logger import logger
-from src.message_classification.manual_classifier import ManualMessageClassifier
+from src.message_classification.whatsapp_message_classifier import WhatsappMessageClassifier
 
 # Number of previous messages to include in the classification context window
 WINDOW_SIZE = 5
@@ -80,7 +80,7 @@ def download_messages_dataframe(limit: int = 50) -> pd.DataFrame:
 
 
 @log_in_out(logger=logger)
-def classify_messages_loop(messages_df: pd.DataFrame, classifier: ManualMessageClassifier) -> pd.DataFrame:
+def classify_messages_loop(messages_df: pd.DataFrame, classifier: WhatsappMessageClassifier) -> pd.DataFrame:
     messages_df = messages_df.copy()
     messages_df['is_lead'] = pd.NA
     messages_df['business_type'] = pd.NA
@@ -120,7 +120,7 @@ def main():
         return
 
     # Initialize the classifier
-    classifier = ManualMessageClassifier()
+    classifier = WhatsappMessageClassifier()
     
     # Classify messages using the new classifier
     classified_df = classify_messages_loop(messages_df, classifier)

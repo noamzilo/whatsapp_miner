@@ -10,7 +10,7 @@ from src.message_classification.pydantic_models import LeadDecision
 from src.utils.llm.schema_builder import SchemaBuilder
 
 
-class ManualMessageClassifier:
+class WhatsappMessageClassifier:
     def __init__(self):
         # Schema validation happens automatically at import time
         self.client = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
