@@ -54,14 +54,14 @@ endef
 # Function to download environment secrets (parameterized format: docker|env)
 define download_env_secrets
 echo "📝 Updating .env.$(1) from Doppler (format=$(2))..."
-doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format=$(2) --no-file --silent > .env.$(1)
+doppler secrets download --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --format=$(2) --no-file --silent > docker/.env.$(1)
 endef
 
 # Function to run docker compose with environment variables for local environment
 # Parameters: $(1)=env, $(2)=docker compose command and args
 define docker_compose_local
 @$(eval _DOCKER_COMPOSE_OVERRIDE := $(if $(filter $(1),dev),$(DOCKER_COMPOSE_DEV),$(DOCKER_COMPOSE_PROD)))
-@./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) $(2)
+@cd docker && ../scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) $(2)
 endef
 
 # Function to run docker compose with environment variables for remote environment
@@ -86,8 +86,8 @@ $(call download_env_secrets,$(1),docker)
 @$(eval _SSH_MINER := $(if $(3),SSH_PORT_MINER=$(3)))
 @$(eval _SSH_CLASSIFIER := $(if $(4),SSH_PORT_CLASSIFIER=$(4)))
 @echo "🔧 Computed values: RUN_MIGRATIONS='$(_RUN_MIGRATIONS)', DOCKER_COMPOSE_OVERRIDE='$(_DOCKER_COMPOSE_OVERRIDE)', DETACHED_FLAG='$(_DETACHED_FLAG)'"
-@echo "🔧 Executing: $(_SSH_MINER) $(_SSH_CLASSIFIER) RUN_MIGRATIONS=$(_RUN_MIGRATIONS) ./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) up $(_DETACHED_FLAG) --build"
-@$(_SSH_MINER) $(_SSH_CLASSIFIER) RUN_MIGRATIONS=$(_RUN_MIGRATIONS) ./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) up $(_DETACHED_FLAG) --build || (echo "❌ ERROR: Command failed in start_env_local function for environment $(1)" && exit 1)
+@echo "🔧 Executing: $(_SSH_MINER) $(_SSH_CLASSIFIER) RUN_MIGRATIONS=$(_RUN_MIGRATIONS) ./scripts/docker-compose-with-env.sh docker/.env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) up $(_DETACHED_FLAG) --build"
+@$(_SSH_MINER) $(_SSH_CLASSIFIER) RUN_MIGRATIONS=$(_RUN_MIGRATIONS) ./scripts/docker-compose-with-env.sh docker/.env.$(1) -p $(call build_project_prefix,$(1)) -f $(DOCKER_COMPOSE_BASE) -f $(_DOCKER_COMPOSE_OVERRIDE) up $(_DETACHED_FLAG) --build || (echo "❌ ERROR: Command failed in start_env_local function for environment $(1)" && exit 1)
 $(if $(2),@echo "✓ $(1) environment started$(if $(3), with SSH ports)")
 endef
 
@@ -148,6 +148,7 @@ endef
 define clean_local_env
 @echo "Stopping and removing $(1) containers and volumes..."
 @$(call docker_compose_local,$(1),down -v --remove-orphans) 2>/dev/null || true
+$(if $(filter $(1),dev),@echo "Cleaning up PostgreSQL container..." && docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml down -v --remove-orphans 2>/dev/null || true)
 @echo "✓ $(1) environment cleaned up"
 endef
 
@@ -302,12 +303,12 @@ prod-deploy: sync-secrets-docker
 sync-secrets-docker:
 	@echo "🔐 Syncing secrets from Doppler (docker format)..."
 	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),docker);)
-	@echo "✓ Secrets (docker format) synced to .env.dev, .env.stg, and .env.prod"
+	@echo "✓ Secrets (docker format) synced to docker/.env.dev, docker/.env.stg, and docker/.env.prod"
 
 sync-secrets-env:
 	@echo "🔐 Syncing secrets from Doppler (env format)..."
 	$(foreach env,$(ENVIRONMENTS),$(call download_env_secrets,$(env),env);)
-	@echo "✓ Secrets (env format) synced to .env.dev, .env.stg, and .env.prod"
+	@echo "✓ Secrets (env format) synced to docker/.env.dev, docker/.env.stg, and docker/.env.prod"
 
 generate-env-example:
 	@echo "📝 Generating .env.example from Doppler..."
