@@ -18,3 +18,4 @@ class WhatsAppMessage(DbInterface):
 	is_forwarded = Column(Boolean)
 	llm_processed = Column(Boolean, nullable=False, server_default="false")
 	is_real = Column(Boolean, nullable=False, server_default="true")
+	quoted_message_id = Column(Integer, ForeignKey("whatsapp_messages.id"), nullable=True)

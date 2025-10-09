@@ -135,6 +135,20 @@ def incoming_message_received(body: dict) -> None:
 			message_data.get("extendedTextMessageData", {}).get("text", "")
 		)
 		is_forwarded = message_data.get("extendedTextMessageData", {}).get("isForwarded", False)
+		
+		# Handle quoted messages
+		quoted_message_id = None
+		if message_type == "quotedMessage":
+			extended_text_data = message_data.get("extendedTextMessageData", {})
+			quoted_stanza_id = extended_text_data.get("stanzaId")
+			if quoted_stanza_id:
+				# Find the quoted message in the database
+				quoted_message = get_message_by_message_id(session, quoted_stanza_id)
+				if quoted_message:
+					quoted_message_id = quoted_message.id
+					logger.info(f"[Quoted] Message {message_id} quotes message {quoted_stanza_id} (DB ID: {quoted_message_id})")
+				else:
+					logger.warning(f"[Quoted] Message {message_id} quotes unknown message {quoted_stanza_id}")
 
 		# Skip messages under 8 characters
 		if len(message_text.strip()) < 8:
@@ -173,6 +187,7 @@ def incoming_message_received(body: dict) -> None:
 			message_type=message_type,
 			is_forwarded=is_forwarded,
 			is_real=True,  # Messages from real WhatsApp API are real
+			quoted_message_id=quoted_message_id,
 		)
 		session.add(new_msg)
 		session.commit()
