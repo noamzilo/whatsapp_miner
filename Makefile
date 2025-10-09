@@ -571,6 +571,11 @@ help:
 	@echo "  make reset-llm-processed-*-dry-run - Check how many messages would be reset (dry run)"
 	@echo "  make llm-processed-stats-*       - Get statistics about processed messages"
 	@echo ""
+	@echo "Fake Message Management:"
+	@echo "  make add-fake-message-dev        - Add fake message to dev database"
+	@echo "  make add-fake-message-stg        - Add fake message to stg database"
+	@echo "  Usage: make add-fake-message-dev MESSAGE=\"Your message\" USER_ID=1 GROUP_ID=1"
+	@echo ""
 	@echo "PyCharm Remote Development (dev only):"
 	@echo "  Use: make dev-local PORTS=911,912 DETACHED=true|false"
 	@echo "  Default SSH ports:"
@@ -631,6 +636,14 @@ define run_db_management
 $(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && /mnt/c/Users/noams/src/whatsapp_miner/.venv/bin/python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)')
 endef
 
+# Function to add fake message to database
+# Parameters: $(1)=env, $(2)=message_text, $(3)=user_id, $(4)=group_id
+define add_fake_message
+@echo "🤖 Adding fake message to $(1) database..."
+@echo "📝 Message: '$(2)'"
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, '$(2)', $(3), $(4)); session.commit(); print('✅ Created fake message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && python -c "from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, \"$(2)\", $(3), $(4)); session.commit(); print(\"✅ Created fake message with ID:\", result); session.close()"')
+endef
+
 # Named entry points for reset operations
 reset-llm-processed-dev:
 	$(call run_db_management,dev,reset)
@@ -660,4 +673,26 @@ llm-processed-stats-stg:
 
 llm-processed-stats-prod:
 	$(call run_db_management,prod,stats)
+
+# ────────────────────────────────────────────────────────────────────────────
+# Fake Message Management
+# ────────────────────────────────────────────────────────────────────────────
+
+# Add fake message to dev database
+add-fake-message-dev:
+	@echo "🤖 Adding fake message to dev database..."
+	@echo "Usage: make add-fake-message-dev MESSAGE=\"Your message text here\" USER_ID=1 GROUP_ID=1"
+	@$(eval MESSAGE := $(or $(MESSAGE),"fake_msg_from_make"))
+	@$(eval USER_ID := $(or $(USER_ID),1))
+	@$(eval GROUP_ID := $(or $(GROUP_ID),1))
+	$(call add_fake_message,dev,$(MESSAGE),$(USER_ID),$(GROUP_ID))
+
+# Add fake message to stg database
+add-fake-message-stg:
+	@echo "🤖 Adding fake message to stg database..."
+	@echo "Usage: make add-fake-message-stg MESSAGE=\"Your message text here\" USER_ID=1 GROUP_ID=1"
+	@$(eval MESSAGE := $(or $(MESSAGE),"fake_msg_from_make"))
+	@$(eval USER_ID := $(or $(USER_ID),1))
+	@$(eval GROUP_ID := $(or $(GROUP_ID),1))
+	$(call add_fake_message,stg,$(MESSAGE),$(USER_ID),$(GROUP_ID))
 
