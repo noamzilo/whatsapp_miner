@@ -141,7 +141,7 @@ endef
 # Function to run migrations
 define run_migrations_env
 @echo "🔄 Running migrations for $(1) environment..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier poetry run alembic upgrade head),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head')
 endef
 
 # Function to clean local containers for environment
