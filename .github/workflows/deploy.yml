@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy (stg/prod)'
+        description: 'Environment to deploy (stg/prd)'
         required: true
         default: 'stg'
         type: choice
         options:
           - stg
-          - prod
+          - prd
   push:
     branches:
-      - main   # deploys prod
+      - main   # deploys prd
       - stage  # deploys stg
 
 jobs:
@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     
     # Determine environment from branch or manual input
-    environment: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'stg') }}
+    environment: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prd' || 'stg') }}
     
     env:
-      ENV_NAME: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prod' || 'stg') }}
+      ENV_NAME: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'prd' || 'stg') }}
       AWS_REGION: ${{ secrets.AWS_EC2_REGION }}
     
     steps:
