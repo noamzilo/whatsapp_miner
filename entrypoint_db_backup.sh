@@ -1,15 +1,17 @@
 #!/bin/bash
 set -e
 
+export TZ=America/Bogota
 echo "Starting database backup service..."
 
 perform_backup() {
+    TIMESTAMP=$(date +%F_%H-%M-%S)
     echo "Starting backup at $(date)"
-    BACKUP_FILE="/tmp/db_backup_$(date +%F_%H-%M-%S).dump"
+    BACKUP_FILE="/tmp/db_backup_${TIMESTAMP}.dump"
     echo "Creating database dump..."
     pg_dump "${SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER}" -Fc -Z9 > "$BACKUP_FILE"
     echo "Uploading to S3..."
-    aws s3 cp "$BACKUP_FILE" "s3://whatsapp-miner-backups/whatsapp_db_$(date +%F_%H-%M-%S).dump"
+    aws s3 cp "$BACKUP_FILE" "s3://whatsapp-miner-backups/whatsapp_db_${TIMESTAMP}.dump"
     rm "$BACKUP_FILE"
     echo "Backup completed successfully at $(date)"
 }
