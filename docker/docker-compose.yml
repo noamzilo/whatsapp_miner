@@ -77,6 +77,30 @@ services:
     networks:
       - whatsapp_network
 
+  # ──────────────────────────────────────────────────────────────────────────
+  # Database Backup Service: Runs nightly database backups to S3
+  # ──────────────────────────────────────────────────────────────────────────
+  db-backup:
+    image: ${DOCKER_IMAGE_NAME_WHATSAPP_MINER}:${ENV_NAME}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ${BUILD_TARGET:-prod}
+    container_name: ${DOCKER_CONTAINER_NAME_WHATSAPP_MINER}_db_backup_${ENV_NAME}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    env_file:
+      - ${ENV_FILE}  # Pass all env vars into container
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_IAM_WHATSAPP_MINER_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_EC2_REGION}
+    entrypoint: ["/entrypoint_db_backup.sh"]
+    restart: unless-stopped
+    networks:
+      - whatsapp_network
+
 # ──────────────────────────────────────────────────────────────────────────
 # Networks
 # ──────────────────────────────────────────────────────────────────────────
