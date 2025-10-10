@@ -574,7 +574,10 @@ help:
 	@echo "Fake Message Management:"
 	@echo "  make add-fake-message-dev        - Add fake message to dev database"
 	@echo "  make add-fake-message-stg        - Add fake message to stg database"
+	@echo "  make add-fake-message-quoted-dev - Add fake quoted message to dev database"
+	@echo "  make add-fake-message-quoted-stg  - Add fake quoted message to stg database"
 	@echo "  Usage: make add-fake-message-dev MESSAGE=\"Your message\" USER_ID=1 GROUP_ID=1"
+	@echo "  Usage: make add-fake-message-quoted-dev MESSAGE=\"Your quoted message\" QUOTED_MESSAGE_ID=47 USER_ID=1 GROUP_ID=1"
 	@echo ""
 	@echo "PyCharm Remote Development (dev only):"
 	@echo "  Use: make dev-local PORTS=911,912 DETACHED=true|false"
@@ -644,6 +647,15 @@ define add_fake_message
 $(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, '$(2)', $(3), $(4)); session.commit(); print('✅ Created fake message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && python -c "from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, \"$(2)\", $(3), $(4)); session.commit(); print(\"✅ Created fake message with ID:\", result); session.close()"')
 endef
 
+# Function to add fake quoted message to database
+# Parameters: $(1)=env, $(2)=message_text, $(3)=quoted_message_db_id, $(4)=user_id, $(5)=group_id
+define add_fake_quoted_message
+@echo "🤖 Adding fake quoted message to $(1) database..."
+@echo "📝 Message: '$(2)'"
+@echo "📎 Quoted message DB ID: $(3)"
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import add_fake_quoted_message; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = add_fake_quoted_message(session, '$(2)', $(3), $(4), $(5)); session.commit(); print('✅ Created fake quoted message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && python -c "from src.db.dal import add_fake_quoted_message; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = add_fake_quoted_message(session, \"$(2)\", $(3), $(4), $(5)); session.commit(); print(\"✅ Created fake quoted message with ID:\", result); session.close()"')
+endef
+
 # Named entry points for reset operations
 reset-llm-processed-dev:
 	$(call run_db_management,dev,reset)
@@ -695,4 +707,24 @@ add-fake-message-stg:
 	@$(eval USER_ID := $(or $(USER_ID),1))
 	@$(eval GROUP_ID := $(or $(GROUP_ID),1))
 	$(call add_fake_message,stg,$(MESSAGE),$(USER_ID),$(GROUP_ID))
+
+# Add fake quoted message to dev database
+add-fake-message-quoted-dev:
+	@echo "🤖 Adding fake quoted message to dev database..."
+	@echo "Usage: make add-fake-message-quoted-dev MESSAGE=\"Your quoted message text here\" QUOTED_MESSAGE_ID=47 USER_ID=1 GROUP_ID=1"
+	@$(eval MESSAGE := $(or $(MESSAGE),"This is a quoted message"))
+	@$(eval QUOTED_MESSAGE_ID := $(or $(QUOTED_MESSAGE_ID),47))
+	@$(eval USER_ID := $(or $(USER_ID),1))
+	@$(eval GROUP_ID := $(or $(GROUP_ID),1))
+	$(call add_fake_quoted_message,dev,$(MESSAGE),$(QUOTED_MESSAGE_ID),$(USER_ID),$(GROUP_ID))
+
+# Add fake quoted message to stg database
+add-fake-message-quoted-stg:
+	@echo "🤖 Adding fake quoted message to stg database..."
+	@echo "Usage: make add-fake-message-quoted-stg MESSAGE=\"Your quoted message text here\" QUOTED_MESSAGE_ID=47 USER_ID=1 GROUP_ID=1"
+	@$(eval MESSAGE := $(or $(MESSAGE),"This is a quoted message"))
+	@$(eval QUOTED_MESSAGE_ID := $(or $(QUOTED_MESSAGE_ID),47))
+	@$(eval USER_ID := $(or $(USER_ID),1))
+	@$(eval GROUP_ID := $(or $(GROUP_ID),1))
+	$(call add_fake_quoted_message,stg,$(MESSAGE),$(QUOTED_MESSAGE_ID),$(USER_ID),$(GROUP_ID))
 

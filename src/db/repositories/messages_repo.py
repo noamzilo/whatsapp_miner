@@ -157,3 +157,59 @@ def get_unprocessed_messages_count(session):
 def get_total_messages_count(session):
     """Get total number of messages."""
     return session.query(WhatsAppMessage).count()
+
+
+def create_fake_quoted_message_with_dependencies(session, message_text: str, 
+                                              quoted_message_db_id: int,
+                                              user_id: int = 1, group_id: int = 1,
+                                              message_id: Optional[str] = None) -> int:
+    """Create a fake quoted message that references another message by database ID."""
+    import uuid
+    
+    # Generate unique message ID if not provided
+    if message_id is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        message_id = f"fake_quoted_msg_{timestamp}_{unique_id}"
+    
+    # Create fake user if it doesn't exist
+    user_whatsapp_id = f"user{user_id}@c.us"
+    user_display_name = f"Test User {user_id}"
+    
+    # Create fake group if it doesn't exist
+    group_whatsapp_id = f"group{group_id}@g.us"
+    group_name = f"Test Group {group_id}"
+    
+    # Create or get user
+    user_id = create_or_get_user(session, user_whatsapp_id, user_display_name)
+    
+    # Create or get group
+    group_id = create_or_get_group(session, group_whatsapp_id, group_name)
+    
+    # Verify that the quoted message exists
+    quoted_message = session.query(WhatsAppMessage).filter_by(id=quoted_message_db_id).first()
+    if not quoted_message:
+        raise ValueError(f"Quoted message with database ID {quoted_message_db_id} does not exist")
+    
+    # Check if message already exists
+    existing = session.query(WhatsAppMessage).filter_by(message_id=message_id).first()
+    if existing:
+        return existing.id
+    
+    # Create the quoted message
+    message = WhatsAppMessage(
+        message_id=message_id,
+        sender_id=user_id,
+        group_id=group_id,
+        timestamp=datetime.now(timezone.utc),
+        raw_text=message_text,
+        message_type="quotedMessage",
+        is_forwarded=False,
+        llm_processed=False,
+        is_real=False,  # Fake messages are not real
+        quoted_message_id=quoted_message_db_id
+    )
+    session.add(message)
+    session.flush()
+    
+    return message.id

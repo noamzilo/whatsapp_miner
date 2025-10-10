@@ -20,6 +20,7 @@ from src.db.repositories.messages_repo import (
     create_message,
     create_message_with_dependencies,
     create_fake_message_with_dependencies,
+    create_fake_quoted_message_with_dependencies,
     get_unclassified_messages,
     mark_message_as_processed,
     get_message_by_id,
@@ -218,3 +219,15 @@ Respond with only the category name or "no_match"."""
         logger = get_logger(__name__)
         logger.warning(f"Error matching with existing categories: {e}")
         return None
+
+
+def add_fake_quoted_message(session, message_text: str, quoted_message_db_id: int, 
+                          user_id: int = 1, group_id: int = 1) -> int:
+    """Add a fake quoted message that references another message by database ID."""
+    return create_fake_quoted_message_with_dependencies(
+        session=session,
+        message_text=message_text,
+        quoted_message_db_id=quoted_message_db_id,
+        user_id=user_id,
+        group_id=group_id
+    )
