@@ -34,3 +34,4 @@ __pycache__/
 # Database dumps
 data_snapshots/
 data/postgres/
+/temp_key.pem
