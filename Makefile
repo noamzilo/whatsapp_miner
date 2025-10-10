@@ -71,7 +71,7 @@ define docker_compose_remote
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
-		./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker/docker-compose.yml -f docker/docker-compose.$(if $(filter $(1),dev),dev,prod).yml $(2)"'
+		./docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker-compose.yml -f docker-compose.$(if $(filter $(1),dev),dev,prod).yml $(2)"'
 endef
 
 # Function to start environment locally (with optional detached mode and port overrides)
@@ -159,7 +159,7 @@ define clean_remote_env
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
 		echo \"Stopping and removing $(1) containers and volumes...\" && \
-		./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker/docker-compose.yml -f docker/docker-compose.$(if $(filter $(1),dev),dev,prod).yml down -v --remove-orphans 2>/dev/null || true && \
+		./docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker-compose.yml -f docker-compose.$(if $(filter $(1),dev),dev,prod).yml down -v --remove-orphans 2>/dev/null || true && \
 		echo \"Cleaning up unused volumes...\" && \
 		docker volume prune -f 2>/dev/null || true && \
 		echo \"✓ $(1) cleanup complete\""'
