@@ -71,7 +71,7 @@ define docker_compose_remote
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
-		./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker/docker-compose.yml -f docker/docker-compose.$(if $(filter $(1),dev),dev,prod).yml $(2)"'
+		./docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker-compose.yml -f docker-compose.$(if $(filter $(1),dev),dev,prod).yml $(2)"'
 endef
 
 # Function to start environment locally (with optional detached mode and port overrides)
@@ -141,7 +141,7 @@ endef
 # Function to run migrations
 define run_migrations_env
 @echo "🔄 Running migrations for $(1) environment..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head'
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier poetry run alembic upgrade head),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head')
 endef
 
 # Function to clean local containers for environment
@@ -159,7 +159,7 @@ define clean_remote_env
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
 		echo \"Stopping and removing $(1) containers and volumes...\" && \
-		./scripts/docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker/docker-compose.yml -f docker/docker-compose.$(if $(filter $(1),dev),dev,prod).yml down -v --remove-orphans 2>/dev/null || true && \
+		./docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker-compose.yml -f docker-compose.$(if $(filter $(1),dev),dev,prod).yml down -v --remove-orphans 2>/dev/null || true && \
 		echo \"Cleaning up unused volumes...\" && \
 		docker volume prune -f 2>/dev/null || true && \
 		echo \"✓ $(1) cleanup complete\""'
@@ -571,6 +571,11 @@ help:
 	@echo "  make reset-llm-processed-*-dry-run - Check how many messages would be reset (dry run)"
 	@echo "  make llm-processed-stats-*       - Get statistics about processed messages"
 	@echo ""
+	@echo "Fake Message Management:"
+	@echo "  make add-fake-message-dev        - Add fake message to dev database"
+	@echo "  make add-fake-message-stg        - Add fake message to stg database"
+	@echo "  Usage: make add-fake-message-dev MESSAGE=\"Your message\" USER_ID=1 GROUP_ID=1"
+	@echo ""
 	@echo "PyCharm Remote Development (dev only):"
 	@echo "  Use: make dev-local PORTS=911,912 DETACHED=true|false"
 	@echo "  Default SSH ports:"
@@ -631,6 +636,14 @@ define run_db_management
 $(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && /mnt/c/Users/noams/src/whatsapp_miner/.venv/bin/python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)')
 endef
 
+# Function to add fake message to database
+# Parameters: $(1)=env, $(2)=message_text, $(3)=user_id, $(4)=group_id
+define add_fake_message
+@echo "🤖 Adding fake message to $(1) database..."
+@echo "📝 Message: '$(2)'"
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, '$(2)', $(3), $(4)); session.commit(); print('✅ Created fake message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && python -c "from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, \"$(2)\", $(3), $(4)); session.commit(); print(\"✅ Created fake message with ID:\", result); session.close()"')
+endef
+
 # Named entry points for reset operations
 reset-llm-processed-dev:
 	$(call run_db_management,dev,reset)
@@ -660,4 +673,26 @@ llm-processed-stats-stg:
 
 llm-processed-stats-prod:
 	$(call run_db_management,prod,stats)
+
+# ────────────────────────────────────────────────────────────────────────────
+# Fake Message Management
+# ────────────────────────────────────────────────────────────────────────────
+
+# Add fake message to dev database
+add-fake-message-dev:
+	@echo "🤖 Adding fake message to dev database..."
+	@echo "Usage: make add-fake-message-dev MESSAGE=\"Your message text here\" USER_ID=1 GROUP_ID=1"
+	@$(eval MESSAGE := $(or $(MESSAGE),"fake_msg_from_make"))
+	@$(eval USER_ID := $(or $(USER_ID),1))
+	@$(eval GROUP_ID := $(or $(GROUP_ID),1))
+	$(call add_fake_message,dev,$(MESSAGE),$(USER_ID),$(GROUP_ID))
+
+# Add fake message to stg database
+add-fake-message-stg:
+	@echo "🤖 Adding fake message to stg database..."
+	@echo "Usage: make add-fake-message-stg MESSAGE=\"Your message text here\" USER_ID=1 GROUP_ID=1"
+	@$(eval MESSAGE := $(or $(MESSAGE),"fake_msg_from_make"))
+	@$(eval USER_ID := $(or $(USER_ID),1))
+	@$(eval GROUP_ID := $(or $(GROUP_ID),1))
+	$(call add_fake_message,stg,$(MESSAGE),$(USER_ID),$(GROUP_ID))
 
