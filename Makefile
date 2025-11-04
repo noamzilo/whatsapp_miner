@@ -1,4 +1,4 @@
-.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets-docker sync-secrets-env generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod cache-clear cache-clear-manual-classifier tag-interactive-dev tag-interactive-stg tag-interactive-prod tag-auto-dev tag-auto-stg tag-auto-prod help
+.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets-docker sync-secrets-env generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod cache-clear cache-clear-manual-classifier tag-interactive-dev tag-interactive-stg tag-interactive-prod tag-auto-dev tag-auto-stg tag-auto-prod sync-messages-stg-to-dev sync-messages-stg-to-dev-dry-run help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -574,6 +574,11 @@ help:
 	@echo "  make tag-auto-stg           - Run auto-tagger (staging)"
 	@echo "  make tag-auto-prod          - Run auto-tagger (PRODUCTION)"
 	@echo ""
+	@echo "Database Sync:"
+	@echo "  make sync-messages-stg-to-dev - Sync messages from stage to dev database"
+	@echo "  make sync-messages-stg-to-dev-dry-run - Dry run (no changes)"
+	@echo "  Usage: make sync-messages-stg-to-dev [LIMIT=100]"
+	@echo ""
 	@echo "Database Management:"
 	@echo "  make reset-llm-processed-dev     - Reset llm_processed flag for all messages (dev)"
 	@echo "  make reset-llm-processed-stg      - Reset llm_processed flag for all messages (stg)"
@@ -675,6 +680,24 @@ tag-auto-stg:
 
 tag-auto-prod:
 	$(call run_tag_auto,prod)
+
+# ────────────────────────────────────────────────────────────────────────────
+# Database Sync
+# ────────────────────────────────────────────────────────────────────────────
+
+sync-messages-stg-to-dev:
+	@echo "🔄 Syncing messages from stage to dev database..."
+	@echo "Usage: make sync-messages-stg-to-dev [LIMIT=100]"
+	@STG_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config stg --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	DEV_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config dev --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	SOURCE_DB="$$STG_DB" TARGET_DB="$$DEV_DB" $(if $(LIMIT),LIMIT=$(LIMIT)) poetry run python -m src.db.utils.sync_messages_from_stage
+
+sync-messages-stg-to-dev-dry-run:
+	@echo "🔍 DRY RUN: Checking what would be synced from stage to dev..."
+	@echo "Usage: make sync-messages-stg-to-dev-dry-run [LIMIT=100]"
+	@STG_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config stg --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	DEV_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config dev --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	SOURCE_DB="$$STG_DB" TARGET_DB="$$DEV_DB" DRY_RUN=true $(if $(LIMIT),LIMIT=$(LIMIT)) poetry run python -m src.db.utils.sync_messages_from_stage
 
 # ────────────────────────────────────────────────────────────────────────────
 # Database Management
