@@ -601,7 +601,7 @@ dump-prod-db:
 		DUMP_FILE="$${DUMP_FILE}" doppler run --project whatsapp_miner_backend --config prd -- \
 		bash -c 'pg_dump "$$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER" \
 		-F c -b -v -f "$${DUMP_FILE}" && echo "File created: $$(ls -la "$${DUMP_FILE}")"'; \
-		ln -sf "$${DUMP_FILE}" data_snapshots/latest_prod_dump.backup; \
+		ln -sf "prod_dump_$${TIMESTAMP}.backup" data_snapshots/latest_prod_dump.backup; \
 		echo "✅ Dump complete: $${DUMP_FILE} (linked to latest_prod_dump.backup)"
 
 # ────────────────────────────────────────────────────────────────────────────
