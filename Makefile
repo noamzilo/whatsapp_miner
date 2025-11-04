@@ -1,4 +1,4 @@
-.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets-docker sync-secrets-env generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod cache-clear cache-clear-manual-classifier help
+.PHONY: dev-local stg-local prod-local stg-deploy prod-deploy sync-secrets-docker sync-secrets-env generate-env-example clean clean-local clean-local-dev clean-local-stg clean-local-prod clean-remote-stg clean-remote-prod health-local health-local-dev health-local-stg health-local-prod health-remote-stg health-remote-prod ssh-stage ssh-prod psql-dev psql-stage psql-prod run-migrations-dev run-migrations-stage run-migrations-prod logs logs-dev logs-stg logs-prod logs-miner-dev logs-miner-stg logs-miner-prod logs-classifier-dev logs-classifier-stg logs-classifier-prod docker-exec-miner-dev-local docker-exec-miner-stg-local docker-exec-miner-prod-local docker-exec-classifier-dev-local docker-exec-classifier-stg-local docker-exec-classifier-prod-local ps ps-local ps-remote restart-dev restart-stg restart-prod stop-dev stop-stg stop-prod cache-clear cache-clear-manual-classifier tag-interactive-dev tag-interactive-stg tag-interactive-prod tag-auto-dev tag-auto-stg tag-auto-prod help
 
 # ════════════════════════════════════════════════════════════════════════════
 # WhatsApp Miner - Makefile
@@ -564,6 +564,14 @@ help:
 	@echo "  make cache-clear-manual-classifier - Clear manual classifier cache"
 	@echo "  make help                   - Show this help message"
 	@echo ""
+	@echo "Message Tagging:"
+	@echo "  make tag-interactive-dev    - Start interactive message tagger (dev, human tagging)"
+	@echo "  make tag-interactive-stg    - Start interactive message tagger (staging)"
+	@echo "  make tag-interactive-prod   - Start interactive message tagger (PRODUCTION)"
+	@echo "  make tag-auto-dev           - Run auto-tagger and compare with human tags (dev, generates CSV)"
+	@echo "  make tag-auto-stg           - Run auto-tagger (staging)"
+	@echo "  make tag-auto-prod          - Run auto-tagger (PRODUCTION)"
+	@echo ""
 	@echo "Database Management:"
 	@echo "  make reset-llm-processed-dev     - Reset llm_processed flag for all messages (dev)"
 	@echo "  make reset-llm-processed-stg      - Reset llm_processed flag for all messages (stg)"
@@ -627,6 +635,44 @@ cache-clear:
 	@echo "Clearing manual classifier cache..."
 	@rm -rf cache/
 	@echo "✓ All caches cleared"
+
+# ────────────────────────────────────────────────────────────────────────────
+# Message Tagging
+# ────────────────────────────────────────────────────────────────────────────
+
+# Function to run interactive tagging for environment
+# Parameters: $(1)=env
+define run_tag_interactive
+@echo "🏷️  Starting interactive message tagger ($(1))..."
+$(if $(filter $(1),prod),@echo "⚠️  WARNING: You are about to tag messages in PRODUCTION!" && read -p "Are you sure? (yes/no): " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted." && exit 1))
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- poetry run python -m src.message_classification.manual.interactive_tagger
+endef
+
+# Function to run auto-tagging for environment
+# Parameters: $(1)=env
+define run_tag_auto
+@echo "🤖 Running auto-tagger with accuracy comparison ($(1))..."
+$(if $(filter $(1),prod),@echo "⚠️  WARNING: You are about to run auto-tagging in PRODUCTION!" && read -p "Are you sure? (yes/no): " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted." && exit 1))
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- poetry run python -m src.message_classification.manual.local_manual_attempts
+endef
+
+tag-interactive-dev:
+	$(call run_tag_interactive,dev)
+
+tag-interactive-stg:
+	$(call run_tag_interactive,stg)
+
+tag-interactive-prod:
+	$(call run_tag_interactive,prod)
+
+tag-auto-dev:
+	$(call run_tag_auto,dev)
+
+tag-auto-stg:
+	$(call run_tag_auto,stg)
+
+tag-auto-prod:
+	$(call run_tag_auto,prod)
 
 # ────────────────────────────────────────────────────────────────────────────
 # Database Management

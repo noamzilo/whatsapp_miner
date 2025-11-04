@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+import re
 
 from sqlalchemy.orm import Session
 
-from src.db.db_interface import get_session_local
+from src.db.db_interface import get_session_local_external
 from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
@@ -33,7 +34,7 @@ MESSAGE_COLORS = [
 
 class InteractiveTagger:
     def __init__(self):
-        self.session: Session = get_session_local()()
+        self.session: Session = get_session_local_external()()
         self.human_tagger = self._get_or_create_human_tagger()
         self.untagged_messages = []
         self.current_index = 0
@@ -134,18 +135,27 @@ class InteractiveTagger:
         quoted = self.session.query(WhatsAppMessage.raw_text).filter_by(id=quoted_id).first()
         return quoted.raw_text if quoted else None
     
+    def _has_hebrew(self, text: str) -> bool:
+        return bool(re.search('[\u0590-\u05FF]', text))
+    
+    def _format_text_for_display(self, text: str) -> str:
+        if self._has_hebrew(text):
+            return text[::-1]
+        return text
+    
     def _display_message(self, msg: Dict[str, Any], color_idx: int, is_current: bool = False):
         bg_color = MESSAGE_COLORS[color_idx % len(MESSAGE_COLORS)]
         timestamp_str = msg['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
-        sender = msg['user_display_name'] or 'Unknown'
-        text = msg['raw_text']
+        sender = self._format_text_for_display(msg['user_display_name'] or 'Unknown')
+        text = self._format_text_for_display(msg['raw_text'])
         
         prefix = f"{COLORS['bold']}{COLORS['green']}>>> CURRENT <<< {COLORS['reset']}" if is_current else ""
         
         quoted_text = self._get_quoted_message(msg.get('quoted_message_id'))
         quoted_display = ""
         if quoted_text:
-            quoted_display = f"\n{bg_color}{COLORS['gray']}  [Quoted: {quoted_text[:60]}...]{COLORS['reset']}"
+            quoted_formatted = self._format_text_for_display(quoted_text)
+            quoted_display = f"\n{bg_color}{COLORS['gray']}  [Quoted: {quoted_formatted}]{COLORS['reset']}"
         
         print(f"{bg_color}{prefix}[{timestamp_str}] {sender}: {text}{quoted_display}{COLORS['reset']}")
     
@@ -159,11 +169,18 @@ class InteractiveTagger:
         
         print("\n" + "="*80)
         print(f"{COLORS['cyan']}Message {self.current_index + 1}/{len(self.untagged_messages)}{COLORS['reset']}")
-        print(f"{COLORS['cyan']}Group: {current_msg['group_name']}{COLORS['reset']}")
+        group_name_display = self._format_text_for_display(current_msg['group_name'] or 'Unknown Group')
+        print(f"{COLORS['cyan']}Group: {group_name_display}{COLORS['reset']}")
+        print(f"{COLORS['cyan']}Context: {len(context)} previous messages{COLORS['reset']}")
         print("="*80)
         
-        for i, ctx_msg in enumerate(context):
-            self._display_message(ctx_msg, i, False)
+        if context:
+            print(f"\n{COLORS['gray']}--- Previous Messages ---{COLORS['reset']}")
+            for i, ctx_msg in enumerate(context):
+                self._display_message(ctx_msg, i, False)
+            print(f"{COLORS['gray']}--- End Previous Messages ---{COLORS['reset']}\n")
+        else:
+            print(f"{COLORS['yellow']}(No previous messages in this group){COLORS['reset']}\n")
         
         self._display_message(current_msg, len(context), True)
         
@@ -178,22 +195,25 @@ class InteractiveTagger:
     def _prompt_for_category(self) -> Optional[int]:
         categories = self._get_all_categories()
         
-        print(f"\n{COLORS['cyan']}Available categories:{COLORS['reset']}")
-        for i, cat in enumerate(categories, 1):
-            print(f"  {i}. {cat.name}")
-        print(f"  0. Skip category")
+        print(f"\n{COLORS['cyan']}Existing categories (for reference):{COLORS['reset']}")
+        for cat in categories:
+            print(f"  - {cat.name}")
         
         while True:
-            choice = input(f"{COLORS['yellow']}Enter category number: {COLORS['reset']}").strip()
-            if choice == '0':
+            category_name = input(f"{COLORS['yellow']}Enter category name (or press Enter to skip): {COLORS['reset']}").strip()
+            
+            if not category_name:
                 return None
-            try:
-                idx = int(choice) - 1
-                if 0 <= idx < len(categories):
-                    return categories[idx].id
-            except ValueError:
-                pass
-            print(f"{COLORS['red']}Invalid choice. Try again.{COLORS['reset']}")
+            
+            existing = self.session.query(LeadCategory).filter_by(name=category_name).first()
+            if existing:
+                return existing.id
+            
+            new_category = LeadCategory(name=category_name)
+            self.session.add(new_category)
+            self.session.commit()
+            print(f"{COLORS['green']}Created new category: {category_name}{COLORS['reset']}")
+            return new_category.id
     
     @log_in_out(logger=logger)
     def _save_tag(self, message_id: int, is_lead: bool, category_id: Optional[int] = None):

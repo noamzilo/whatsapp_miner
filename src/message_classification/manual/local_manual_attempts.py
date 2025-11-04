@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 
 import pandas as pd
 
-from src.db.db_interface import get_session_local
+from src.db.db_interface import get_session_local_external
 from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.models.whatsapp_user import WhatsAppUser
 from src.db.models.whatsapp_group import WhatsAppGroup
@@ -23,7 +23,7 @@ class AutoTaggingOrchestrator:
         self.num_not_leads = num_not_leads
         self.window_size = window_size
         self.classifier = WhatsappMessageClassifier()
-        self.session = get_session_local()()
+        self.session = get_session_local_external()()
         self.model_tagger = self._get_or_create_model_tagger()
         self.human_tagger = self._get_human_tagger()
     
