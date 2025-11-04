@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from src.db.db_interface import get_db_session
 from src.db.dal import get_total_messages_count, get_processed_messages_count, get_unprocessed_messages_count, update_messages_to_unprocessed
-from src.message_classification.message_classification_logger import logger
+from src.utils.logger import logger
 from src.env_var_injection import database_url
 
 logger.info(f"[DEBUG] SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER: {os.getenv('SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER')}")

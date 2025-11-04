@@ -4,6 +4,7 @@
 - when running anything that needs secrets, use `doppler run --project whatsapp_miner_backend --config dev`. Also add that to shell scripts
 - All imports should be from the `src` directory and top of file. No relative imports and no inline imports.
 - Be careful of n+1 queries when writing sql queries or using sqlalchemy.
+- Dont run commands directly, we have make commands for everything.
 
 * versions of things:
 - Scripts are run from WSL2 ubuntu 24.04.

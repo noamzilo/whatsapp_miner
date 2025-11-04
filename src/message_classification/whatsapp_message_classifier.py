@@ -5,16 +5,16 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from joblib import Memory
 
 from src.utils.log import log_in_out
-from src.message_classification.message_classification_logger import logger
+from src.utils.logger import logger
 from src.paths import cache_root
 from src.message_classification.pydantic_models import LeadDecision
 from src.utils.llm.schema_builder import SchemaBuilder
+from src.message_classification.message_classification_config import ACTIVE_MODEL_NAME
 
 
 class WhatsappMessageClassifier:
     def __init__(self):
-        # Schema validation happens automatically at import time
-        self.client = ChatOpenAI(model="gpt-4o-mini", temperature=0.0)
+        self.client = ChatOpenAI(model=ACTIVE_MODEL_NAME, temperature=0.0)
         self.structured_model = self.client.with_structured_output(LeadDecision)
         self.schema_builder = SchemaBuilder()
         

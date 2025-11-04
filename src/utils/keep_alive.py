@@ -7,7 +7,7 @@ via feature flags.
 """
 
 import threading
-from src.message_classification.message_classification_logger import logger
+from src.utils.logger import logger
 from src.utils.log import log_in_out
 
 @log_in_out(logger)
