@@ -76,10 +76,10 @@ if [[ ! -d "migrations" ]]; then
 fi
 
 # Run alembic with Doppler environment injection using project virtual environment
-echo "🔄 Executing: doppler run --project whatsapp_miner_backend --config $ENV_NAME --command \"source .venv/bin/activate && python -m alembic $ALEMBIC_COMMAND\""
+echo "🔄 Executing: doppler run --project whatsapp_miner_backend --config $ENV_NAME -- bash -c \"uv run --frozen python -m alembic $ALEMBIC_COMMAND\""
 doppler run \
     --project whatsapp_miner_backend \
     --config "$ENV_NAME" \
-    --command "source .venv/bin/activate && python -m alembic $ALEMBIC_COMMAND"
+    -- bash -c "uv run --frozen python -m alembic $ALEMBIC_COMMAND"
 
 echo "✅ Migration command completed successfully!"

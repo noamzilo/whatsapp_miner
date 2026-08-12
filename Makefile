@@ -67,7 +67,7 @@ endef
 # Function to run docker compose with environment variables for remote environment
 # Parameters: $(1)=env, $(2)=docker compose command and args
 define docker_compose_remote
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
@@ -115,7 +115,7 @@ endef
 # Function to check local container health
 define check_local_health
 @echo "🏥 Checking $(1) container health..."
-@$(call docker_compose_local,$(1),ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\") 2>/dev/null || echo "No $(1) containers running"
+@$(call docker_compose_local,$(1),ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\")
 endef
 
 # Function to check remote container health
@@ -127,7 +127,7 @@ endef
 # Function to SSH into environment
 define ssh_env
 @echo "🔐 Connecting to $(1) EC2..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS'
 endef
@@ -135,13 +135,13 @@ endef
 # Function to connect to database
 define psql_env
 @echo "🐘 Connecting to $(1) database..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c 'PGPASSWORD="$$SUPABASE_DATABASE_PASSWORD" $$SUPABASE_PSQL_COMMAND'
 endef
 
 # Function to run migrations
 define run_migrations_env
 @echo "🔄 Running migrations for $(1) environment..."
-$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier poetry run alembic upgrade head),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd /home/noams/src/whatsapp_miner && poetry shell && poetry run alembic upgrade head')
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier alembic upgrade head),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c 'cd "$$WORKING_DIR" && uv run --frozen alembic upgrade head')
 endef
 
 # Function to clean local containers for environment
@@ -154,7 +154,7 @@ endef
 # Function to clean remote containers for environment
 define clean_remote_env
 @echo "🧹 Cleaning up $(1) containers and volumes on remote EC2..."
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command '\
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
@@ -195,7 +195,7 @@ endef
 # Function to show remote container status
 define show_remote_status_env
 @echo "$(1) containers on EC2:"
-@$(call docker_compose_remote,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\"") 2>/dev/null || echo "No $(1) containers on remote"
+@$(call docker_compose_remote,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\"")
 endef
 
 # Function to restart environment
@@ -652,7 +652,7 @@ cache-clear:
 define run_tag_interactive
 @echo "🏷️  Starting interactive message tagger ($(1))..."
 $(if $(filter $(1),prod),@echo "⚠️  WARNING: You are about to tag messages in PRODUCTION!" && read -p "Are you sure? (yes/no): " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted." && exit 1))
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- poetry run python -m src.message_classification.manual.interactive_tagger
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- uv run --frozen python -m src.message_classification.manual.interactive_tagger
 endef
 
 # Function to run auto-tagging for environment
@@ -660,7 +660,7 @@ endef
 define run_tag_auto
 @echo "🤖 Running auto-tagger with accuracy comparison ($(1))..."
 $(if $(filter $(1),prod),@echo "⚠️  WARNING: You are about to run auto-tagging in PRODUCTION!" && read -p "Are you sure? (yes/no): " confirm && [ "$$confirm" = "yes" ] || (echo "Aborted." && exit 1))
-@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- poetry run python -m src.message_classification.manual.local_manual_attempts
+@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- uv run --frozen python -m src.message_classification.manual.local_manual_attempts
 endef
 
 tag-interactive-dev:
@@ -688,16 +688,16 @@ tag-auto-prod:
 sync-messages-stg-to-dev:
 	@echo "🔄 Syncing messages from stage to dev database..."
 	@echo "Usage: make sync-messages-stg-to-dev [LIMIT=100]"
-	@STG_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config stg --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
-	DEV_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config dev --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
-	SOURCE_DB="$$STG_DB" TARGET_DB="$$DEV_DB" $(if $(LIMIT),LIMIT=$(LIMIT)) poetry run python -m src.db.utils.sync_messages_from_stage
+	@STG_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config stg -- bash -c 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	DEV_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config dev -- bash -c 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	SOURCE_DB="$$STG_DB" TARGET_DB="$$DEV_DB" $(if $(LIMIT),LIMIT=$(LIMIT)) uv run --frozen python -m src.db.utils.sync_messages_from_stage
 
 sync-messages-stg-to-dev-dry-run:
 	@echo "🔍 DRY RUN: Checking what would be synced from stage to dev..."
 	@echo "Usage: make sync-messages-stg-to-dev-dry-run [LIMIT=100]"
-	@STG_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config stg --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
-	DEV_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config dev --command 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
-	SOURCE_DB="$$STG_DB" TARGET_DB="$$DEV_DB" DRY_RUN=true $(if $(LIMIT),LIMIT=$(LIMIT)) poetry run python -m src.db.utils.sync_messages_from_stage
+	@STG_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config stg -- bash -c 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	DEV_DB=$$(doppler run --project $(DOPPLER_PROJECT) --config dev -- bash -c 'echo $$SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER') && \
+	SOURCE_DB="$$STG_DB" TARGET_DB="$$DEV_DB" DRY_RUN=true $(if $(LIMIT),LIMIT=$(LIMIT)) uv run --frozen python -m src.db.utils.sync_messages_from_stage
 
 # ────────────────────────────────────────────────────────────────────────────
 # Database Management
@@ -707,7 +707,7 @@ sync-messages-stg-to-dev-dry-run:
 # Parameters: $(1)=env, $(2)=action, $(3)=dry_run_flag
 define run_db_management
 @echo "$(if $(3),🔍 DRY RUN: Checking how many messages would be affected in $(1) environment...,🔄 $(2) for $(1) environment...)"
-$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && /mnt/c/Users/noams/src/whatsapp_miner/.venv/bin/python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)')
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c 'cd $$WORKING_DIR && uv run --frozen python -m src.db.utils.manual_db_changes $(2)$(if $(3), --dry-run)')
 endef
 
 # Function to add fake message to database
@@ -715,7 +715,7 @@ endef
 define add_fake_message
 @echo "🤖 Adding fake message to $(1) database..."
 @echo "📝 Message: '$(2)'"
-$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, '$(2)', $(3), $(4)); session.commit(); print('✅ Created fake message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && python -c "from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, \"$(2)\", $(3), $(4)); session.commit(); print(\"✅ Created fake message with ID:\", result); session.close()"')
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, '$(2)', $(3), $(4)); session.commit(); print('✅ Created fake message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c 'cd $$WORKING_DIR && python -c "from src.db.dal import create_fake_message_with_dependencies; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = create_fake_message_with_dependencies(session, \"$(2)\", $(3), $(4)); session.commit(); print(\"✅ Created fake message with ID:\", result); session.close()"')
 endef
 
 # Function to add fake quoted message to database
@@ -724,7 +724,7 @@ define add_fake_quoted_message
 @echo "🤖 Adding fake quoted message to $(1) database..."
 @echo "📝 Message: '$(2)'"
 @echo "📎 Quoted message DB ID: $(3)"
-$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import add_fake_quoted_message; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = add_fake_quoted_message(session, '$(2)', $(3), $(4), $(5)); session.commit(); print('✅ Created fake quoted message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) --command 'cd $$WORKING_DIR && python -c "from src.db.dal import add_fake_quoted_message; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = add_fake_quoted_message(session, \"$(2)\", $(3), $(4), $(5)); session.commit(); print(\"✅ Created fake quoted message with ID:\", result); session.close()"')
+$(if $(filter $(1),dev),@$(call docker_compose_local,$(1),exec classifier python -c "import sys; sys.path.append('/app'); from src.db.dal import add_fake_quoted_message; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = add_fake_quoted_message(session, '$(2)', $(3), $(4), $(5)); session.commit(); print('✅ Created fake quoted message with ID:', result); session.close()"),@doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c 'cd $$WORKING_DIR && python -c "from src.db.dal import add_fake_quoted_message; from src.db.db_interface import get_db_session; session = get_db_session().__enter__(); result = add_fake_quoted_message(session, \"$(2)\", $(3), $(4), $(5)); session.commit(); print(\"✅ Created fake quoted message with ID:\", result); session.close()"')
 endef
 
 # Named entry points for reset operations

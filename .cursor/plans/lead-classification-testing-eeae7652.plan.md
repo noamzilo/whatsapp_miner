@@ -1,4 +1,22 @@
-<!-- eeae7652-4315-4fb8-a585-8bbb0a861889 84d57d48-c499-47f6-85f5-3024388829fc -->
+---
+name: Lead Classification with DB-Backed Tagging
+overview: ""
+todos:
+  - id: 234d1137-5db6-4048-bdd9-0b1c7d3c0b9e
+    content: Create src/utils/logger.py with setup_logger() call and exported logger instance
+    status: pending
+  - id: d33d7aef-e944-43e6-adc0-0c28ad86d14a
+    content: Rewrite local_manual_attempts.py with Phase 1 (find 10 leads) and Phase 2 (test same 10 + X) logic
+    status: pending
+  - id: 07b43099-bddb-4443-a784-b138fcb480e1
+    content: Update imports in whatsapp_message_classifier.py and other files to use new centralized logger
+    status: pending
+  - id: bd161002-e842-4c32-8a2c-43ebc1049889
+    content: Delete message_classification_logger.py file
+    status: pending
+isProject: false
+---
+
 # Lead Classification with DB-Backed Tagging
 
 ## Database Schema Design (Normalized)
@@ -172,10 +190,3 @@ Text preview truncated to 30 chars for display only
 - Keep code FLAT, no deep nesting
 - No docstrings, no comments (except functionally required)
 - Only update code, don't run anything
-
-### To-dos
-
-- [ ] Create src/utils/logger.py with setup_logger() call and exported logger instance
-- [ ] Rewrite local_manual_attempts.py with Phase 1 (find 10 leads) and Phase 2 (test same 10 + X) logic
-- [ ] Update imports in whatsapp_message_classifier.py and other files to use new centralized logger
-- [ ] Delete message_classification_logger.py file

@@ -16,18 +16,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     awscli \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry 2.1.3 exactly
-RUN curl -sSL https://install.python-poetry.org | python3 - --version 2.1.3
-ENV PATH="/root/.local/bin:$PATH"
+# Install uv (pinned; copied from the official distroless image)
+COPY --from=ghcr.io/astral-sh/uv:0.12.3 /uv /usr/local/bin/uv
+
+# Put the project venv first on PATH so `python`/`alembic` resolve to it
+ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH=/app
+# Copy instead of hardlink: the build context and cache sit on different mounts
+ENV UV_LINK_MODE=copy
 
 WORKDIR /app
 
-# Copy poetry configuration files for dependency resolution
-COPY pyproject.toml poetry.toml poetry.lock README.md ./
-
-# Configure Poetry to not create virtual environments (use system Python)
-RUN poetry config virtualenvs.create false
+# Copy dependency manifests for resolution
+COPY pyproject.toml uv.lock README.md ./
 
 # ────────────────────────────────────────────────────────────────────────────
 # Dev Stage: Includes dev dependencies and tools
@@ -35,7 +36,7 @@ RUN poetry config virtualenvs.create false
 FROM base as dev
 
 # Install ALL dependencies including dev tools
-RUN poetry install --no-interaction --no-ansi --with dev
+RUN uv sync --frozen
 
 # Install SSH server and required tools for PyCharm remote development
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -85,7 +86,7 @@ ENTRYPOINT ["/entrypoint_whatsapp_miner.sh"]
 FROM base as prod
 
 # Install ONLY production dependencies (no dev tools)
-RUN poetry install --no-interaction --no-ansi --only main
+RUN uv sync --frozen --no-dev
 
 # Remove build tools to reduce image size
 RUN apt-get purge -y --auto-remove build-essential \

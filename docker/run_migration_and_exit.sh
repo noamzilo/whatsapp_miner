@@ -14,9 +14,9 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
     echo "Running database migrations..."
     cd /app
     echo "🔧 Checking alembic syntax..."
-    poetry run python -c "import alembic" || (echo "❌ SYNTAX ERROR in alembic import" && exit 1)
+    python -c "import alembic" || (echo "❌ SYNTAX ERROR in alembic import" && exit 1)
     echo "✅ Alembic import check passed"
-    poetry run alembic upgrade head
+    alembic upgrade head
     echo "Migrations completed successfully"
 else
     echo "Skipping migrations (RUN_MIGRATIONS=false)"
