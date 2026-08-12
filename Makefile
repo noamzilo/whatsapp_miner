@@ -66,12 +66,17 @@ endef
 
 # Function to run docker compose with environment variables for remote environment
 # Parameters: $(1)=env, $(2)=docker compose command and args
+#
+# Remote resources are named after the Doppler config (stg/prd), NOT the make env
+# name (stg/prod) -- deploy.yml creates them as whatsapp_miner_$ENV_NAME with
+# ENV_NAME=stg|prd. Using $(1) here made every remote `prod` target address a
+# project and env file that do not exist, and report nothing found.
 define docker_compose_remote
 @doppler run --project $(DOPPLER_PROJECT) --config $(call extract_doppler_config,$(1)) -- bash -c '\
 	$(SSH_KEY_SETUP) && \
 	ssh -i "$$KEY_FILE" ubuntu@$$AWS_EC2_HOST_ADDRESS \
 		"cd $$AWS_EC2_WORKING_DIRECTORY_WHATSAPP_MINER && \
-		./docker-compose-with-env.sh .env.$(1) -p $(call build_project_prefix,$(1)) -f docker-compose.yml -f docker-compose.$(if $(filter $(1),dev),dev,prod).yml $(2)"'
+		./docker-compose-with-env.sh .env.$(call extract_doppler_config,$(1)) -p $(call build_project_prefix,$(call extract_doppler_config,$(1))) -f docker-compose.yml -f docker-compose.$(if $(filter $(1),dev),dev,prod).yml $(2)"'
 endef
 
 # Function to start environment locally (with optional detached mode and port overrides)
@@ -115,13 +120,13 @@ endef
 # Function to check local container health
 define check_local_health
 @echo "🏥 Checking $(1) container health..."
-@$(call docker_compose_local,$(1),ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\")
+@$(call docker_compose_local,$(1),ps --format {{.Name}}::{{.Status}}::{{.Service}})
 endef
 
 # Function to check remote container health
 define check_remote_health
 @echo "🏥 Checking health on $(1) EC2..."
-@$(call docker_compose_remote,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Service}}\"")
+@$(call docker_compose_remote,$(1),"ps --format {{.Name}}::{{.Status}}::{{.Service}}")
 endef
 
 # Function to SSH into environment
@@ -189,13 +194,13 @@ endef
 # Function to show container status for environment
 define show_container_status_env
 @echo "$(1) containers:"
-@$(call docker_compose_local,$(1),ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\") 2>/dev/null || echo "No $(1) containers"
+@$(call docker_compose_local,$(1),ps --format {{.Name}}::{{.Status}}::{{.Ports}}::{{.Service}})
 endef
 
 # Function to show remote container status
 define show_remote_status_env
 @echo "$(1) containers on EC2:"
-@$(call docker_compose_remote,$(1),"ps --format \"table {{.Name}}\t{{.Status}}\t{{.Ports}}\t{{.Service}}\"")
+@$(call docker_compose_remote,$(1),"ps --format {{.Name}}::{{.Status}}::{{.Ports}}::{{.Service}}")
 endef
 
 # Function to restart environment
