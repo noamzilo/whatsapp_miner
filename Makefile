@@ -222,9 +222,11 @@ define test_deploy_env
 endef
 
 # Function to generate help section for environment commands
+COMMA := ,
+
 define help_env_section
 	@echo "  make $(1)-local              - Start $(1) environment locally (detached by default)"
-	$(if $(filter $(1),dev),@echo "                               Args: PORTS=911,912 or MINER_PORT=... CLASSIFIER_PORT=... DETACHED=true|false")
+	$(if $(filter $(1),dev),@echo "                               Args: PORTS=911$(COMMA)912 or MINER_PORT=... CLASSIFIER_PORT=... DETACHED=true|false")
 @echo "  make clean-local-$(1)        - Clean $(1) containers and volumes"
 @echo "  make health-local-$(1)       - Check $(1) container health"
 @echo "  make health-remote-$(1)      - Check $(1) EC2 container health"
