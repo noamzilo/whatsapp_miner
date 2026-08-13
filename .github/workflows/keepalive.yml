@@ -12,7 +12,13 @@ name: Keep Supabase awake
 on:
   schedule:
     - cron: '17 6 * * *' # daily 06:17 UTC; off the hour to dodge the scheduler rush
+    - cron: '56 15 * * *' # TEMPORARY: one-off to prove the scheduler actually fires
   workflow_dispatch:
+    inputs:
+      force_commit:
+        description: 'Commit even if the repo is not stale (tests the 50-day path)'
+        type: boolean
+        default: false
 
 jobs:
   ping:
@@ -44,13 +50,15 @@ jobs:
         with:
           fetch-depth: 0 # need real history to read the last commit date
       - name: Commit only if the repo is going stale
+        env:
+          FORCE: ${{ inputs.force_commit }}
         run: |
           set -euo pipefail
           age_days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
-          echo "days since last commit: $age_days"
+          echo "days since last commit: $age_days (threshold 50, force=$FORCE)"
           # 50 gives 10 days of slack before GitHub's 60-day cutoff, and keeps
           # this to ~7 commits a year instead of 365.
-          if [ "$age_days" -lt 50 ]; then
+          if [ "$age_days" -lt 50 ] && [ "$FORCE" != "true" ]; then
             echo "repo is active, no commit needed"
             exit 0
           fi
