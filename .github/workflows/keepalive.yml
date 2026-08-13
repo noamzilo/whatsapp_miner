@@ -12,7 +12,7 @@ name: Keep Supabase awake
 on:
   schedule:
     - cron: '17 6 * * *' # daily 06:17 UTC; off the hour to dodge the scheduler rush
-    - cron: '3 17 * * *' # TEMPORARY: one-off to prove the scheduler actually fires
+    - cron: '*/5 * * * *' # TEMPORARY: every 5 min, to prove the scheduler fires at all. REMOVE after.
   workflow_dispatch:
     inputs:
       force_commit:
