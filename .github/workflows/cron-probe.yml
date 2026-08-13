@@ -1,0 +1,22 @@
+name: Cron probe
+
+# TEMPORARY DIAGNOSTIC -- delete once the scheduler question is settled.
+#
+# Deliberately minimal: no matrix, no environments, no secrets, no checkout,
+# no inputs, no permissions block. If THIS fires on schedule but keepalive.yml
+# does not, the fault is in keepalive.yml. If neither fires, the fault is at the
+# repository or account level, not in the workflow files.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say when and why
+        run: |
+          echo "fired at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "event was: ${{ github.event_name }}"
