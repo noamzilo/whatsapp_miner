@@ -1,0 +1,31 @@
+name: Keep Supabase awake
+
+# Supabase pauses a Free-tier project after ~7 days with no activity. The only
+# thing that used to keep ours awake was the classifier polling the DB from EC2;
+# with EC2 stopped, one query a day is enough to reset the idle timer.
+#
+# CAVEAT: GitHub disables scheduled workflows after 60 days with no repository
+# activity, and emails you first. This repo has gone quiet for months at a time,
+# so expect that mail eventually -- re-enabling is one click in the Actions tab.
+# If you want a keep-alive that survives total repo silence, it has to live off
+# GitHub (cron-job.org or a Cloudflare Worker hitting the same endpoint).
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # daily 06:17 UTC; off the hour to dodge the scheduler rush
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one dead environment must not hide the other's result
+      matrix:
+        target: [stg, prd]
+    environment: ${{ matrix.target }} # the connection strings are environment-scoped secrets
+    steps:
+      - name: Ping ${{ matrix.target }} database
+        env:
+          # _EXTERNAL is the only variant reachable from outside the docker network
+          CONN: ${{ secrets.SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER_EXTERNAL }}
+        run: psql "$CONN" -w -tAc 'select current_database(), now()'
