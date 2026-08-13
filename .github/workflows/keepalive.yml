@@ -4,11 +4,10 @@ name: Keep Supabase awake
 # thing that used to keep ours awake was the classifier polling the DB from EC2;
 # with EC2 stopped, one query a day is enough to reset the idle timer.
 #
-# CAVEAT: GitHub disables scheduled workflows after 60 days with no repository
-# activity, and emails you first. This repo has gone quiet for months at a time,
-# so expect that mail eventually -- re-enabling is one click in the Actions tab.
-# If you want a keep-alive that survives total repo silence, it has to live off
-# GitHub (cron-job.org or a Cloudflare Worker hitting the same endpoint).
+# GitHub also disables scheduled workflows after 60 days with no repository
+# activity -- and a workflow's own runs do NOT count as activity, only commits do.
+# The touch-repo job below resets that clock with an empty commit, but only once
+# the repo has actually gone quiet, so history stays clean.
 
 on:
   schedule:
@@ -29,3 +28,33 @@ jobs:
           # _EXTERNAL is the only variant reachable from outside the docker network
           CONN: ${{ secrets.SUPABASE_DATABASE_CONNECTION_STRING_SESSION_POOLER_EXTERNAL }}
         run: psql "$CONN" -w -tAc 'select current_database(), now()'
+
+  # Resets GitHub's 60-day scheduled-workflow timer so the ping job above cannot
+  # switch itself off during a long quiet stretch.
+  #
+  # Pushes made with GITHUB_TOKEN do not trigger workflows, so this commit will
+  # NOT fire the deploy workflow despite landing on main. That is a documented
+  # GitHub behaviour, not a happy accident.
+  touch-repo:
+    runs-on: ubuntu-latest # no `environment:` -- avoids prd's 15 minute wait timer
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need real history to read the last commit date
+      - name: Commit only if the repo is going stale
+        run: |
+          set -euo pipefail
+          age_days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
+          echo "days since last commit: $age_days"
+          # 50 gives 10 days of slack before GitHub's 60-day cutoff, and keeps
+          # this to ~7 commits a year instead of 365.
+          if [ "$age_days" -lt 50 ]; then
+            echo "repo is active, no commit needed"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive, reset the 60-day scheduled-workflow timer"
+          git push
